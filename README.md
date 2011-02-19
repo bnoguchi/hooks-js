@@ -45,6 +45,7 @@ We can use `hooks` to add validation and background jobs in the following way:
 
 ## Pres and Posts as Middleware
 We structure pres and posts as middleware to give you maximum flexibility:
+
 1. You can define **multiple** pres (or posts) for a single method.
 2. These pres (or posts) are then executed as a chain of methods.
 3. Any functions in this middleware chain can choose to halt the chain's execution. If this occurs, then none of the other middleware in the chain will execute, and the main method (e.g., `save`) will not execute. This is nice, for example, when we don't want a document to save if it is invalid.
