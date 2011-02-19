@@ -50,6 +50,51 @@ We structure pres and posts as middleware to give you maximum flexibility:
 2. These pres (or posts) are then executed as a chain of methods.
 3. Any functions in this middleware chain can choose to halt the chain's execution. If this occurs, then none of the other middleware in the chain will execute, and the main method (e.g., `save`) will not execute. This is nice, for example, when we don't want a document to save if it is invalid.
 
+## Defining multiple pres (or posts)
+`pre` is chainable, so you can define multiple pres via:
+    Model.pre('save', function (next, halt) {
+      console.log("hello");
+      next();
+    }).pre('save', function (next, halt) {
+      console.log("world");
+      next();
+    });
+
+## Mutating Arguments via Middleware
+`pre` and `post` middleware can also accept the intended arguments for the method
+they augment. This is useful if you want to mutate the arguments before passing
+them along to the next middleware and eventually pass a mutated arguments list to
+the main method itself.
+
+As a simple example, let's define a method `set` that just sets a key, value pair.
+If we want to namespace the key, we can do so by adding a `pre` middleware hook
+that runs before `set`, alters the arguments, and passes them onto `set`:
+    Document.hook('set', function (path, val) {
+      this[path] = val;
+    });
+    Document.pre('set', function (next, halt, path, val) {
+      next('namespace-' + path, val);
+    });
+    var doc = new Document();
+    doc.set('hello', 'world');
+    console.log(doc.hello); // undefined
+    console.log(doc['namespace-hello']); // 'world'
+
+As you can see above, we pass arguments via `next`.
+
+Sometimes, the meaning of arguments changes depending on how many arguments there are
+and/or what the argument types are. You can handle this in the following way:
+    Document.pre('set', function (next, halt, args) {
+      // args is the array of arguments
+      if (args.length === 1) {
+        // Handle scenario where only 1 arguments is passed
+      } else if (args.length === 2) {
+        // Handle scenario where 2 arguments are passed
+      } else {
+        // Handle other arguments.length scenarios
+      }
+    });
+
 ## Tests
 To run the tests:
     make test
