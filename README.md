@@ -16,7 +16,7 @@ and you might want to dispatch a job to a background job queue after `save`.
 One might have an urge to hard code this all into `save`, but that turns out to
 couple all these pieces of functionality (validation, save, and job creation) more
 tightly than is necessary. For example, what if someone does not want to do background
-job creation after the logical save.
+job creation after the logical save? 
 
 It is nicer to tack on functionality using what we call `pre` and `post` hooks. These
 are functions that you define and that you direct to execute before or after particular
@@ -25,22 +25,26 @@ methods.
 ## Example
 We can use `hooks` to add validation and background jobs in the following way:
     var hooks = require('hooks')
-      , Document = require('./path/to/some/document/with/save');
+      , Document = require('./path/to/some/document/constructor');
 
     // Add hooks' methods: `hook`, `pre`, and `post`    
     for (var k in hooks) {
       Document.prototype[k] = hooks[k];
     }
 
+    // Define a new method that is able to invoke pre and post middleware
     Document.hook('save', Document.prototype.save);
 
+    // Define a middleware function to be invoked before 'save'
     Document.pre('save', function validate (next) {
       // The `this` context inside of `pre` and `post` functions
       // is the Document instance
-      if (this.isValid()) next();
-      else next(new Error("Invalid"));
+      if (this.isValid()) next();      // next() passes control to the next middleware
+                                       // or to the target method itself
+      else next(new Error("Invalid")); // next(error) invokes an error callback
     });
 
+    // Define a middleware function to be invoked after 'save'
     Document.post('save', function createJob () {
       this.sendToBackgroundQueue();
     });
@@ -63,6 +67,29 @@ We structure pres and posts as middleware to give you maximum flexibility:
 As soon as one pre finishes executing, the next one will be invoked, and so on.
 
 ## Error Handling
+You can define an error handler by passing a 2nd function as the 3rd argument to `hook`:
+    Document.hook('set', function (path, val) {
+      this[path] = val;
+    }, function (err) {
+      // Handler the error here
+      console.error(err);
+    });
+
+Then, we can pass errors to this handler from a pre or post middleware function:
+    Document.pre('set', function (next, path, val) {
+      next(new Error());
+    });
+
+Alternatively, you do not need to provide a distinct error handler. If the main method that you
+are surrounding with pre and post middleware expects a potential error as one of its arguments,
+then you can make the main method also be the error handler, by not specifying an error handler
+as the 3rd argument to `hook`:
+    Document.hook('save', function (err, callback) {
+      // We can pass err via `next` in any of our pre or post middleware functions
+      if (err) console.error(err);
+      // Save logic goes here
+      ...
+    });
 
 ## Mutating Arguments via Middleware
 `pre` and `post` middleware can also accept the intended arguments for the method
@@ -86,31 +113,115 @@ that runs before `set`, alters the arguments by namespacing the `key` argument, 
 
 As you can see above, we pass arguments via `next`.
 
-Sometimes, the meaning of arguments changes depending on how many arguments there are
-and/or what the argument types are. You can handle this in the following way:
-    Document.pre('set', function (args) {
-      // args is the array of arguments
-      if (args.length === 1) {
-        // Handle scenario where only 1 arguments is passed
-      } else if (args.length === 2) {
-        // Handle scenario where 2 arguments are passed
-      } else {
-        // Handle other arguments.length scenarios
-      }
-    });
-
 If you are not mutating the arguments, then you can pass zero arguments
 to `next`, and the next middleware function will still have access
 to the arguments.
+    Document.hook('set', function (key, val) {
+      this[key] = val;
+    });
+    Document.pre('set', function (next, key, val) {
+      // I have access to key and val here
+      next(); // We don't need to pass anything to next
+    });
+    Document.pre('set', function (next, key, val) {
+      // And I still have access to the original key and val here
+      next();
+    });
+
+Finally, you can add arguments that downstream middleware can also see:
+    // Note that in the definition of `set`, there is no 3rd argument, options
+    Document.hook('set', function (key, val) {
+      // But...
+      var options = arguments[2]; // ...I have access to an options argument
+                                  // because of pre function pre2 (defined below)
+      console.log(options); // '{debug: true}'
+      this[key] = val;
+    });
+    Document.pre('set', function pre1 (next, key, val) {
+      // I only have access to key and val arguments
+      console.log(arguments.length); // 3
+      next(key, val, {debug: true});
+    });
+    Document.pre('set', function pre2 (next, key, val, options) {
+      console.log(arguments.length); // 4
+      console.log(options); // '{ debug: true}'
+      next();
+    });
+    Document.pre('set', function pre3 (next, key, val, options) {
+      // I still have access to key, val, AND the options argument introduced via the preceding middleware
+      console.log(arguments.length); // 4
+      console.log(options); // '{ debug: true}'
+      next();
+    });
+    
+    var doc = new Document()
+    doc.set('hey', 'there');
 
 ## Asynchronous `pre` middleware
 Some scenarios call for asynchronous middleware.
 
-    Document.pre('set', function (done, key, value) {
-    }, true);
-
 For instance, you may only want to save a Document only after you have checked
 that the Document is valid according to a remote service.
+
+We accomplish asynchronous middleware by adding a second kind of flow control callback
+(the only flow control callback so far has been `next`), called `done`.
+
+- `next` passes control to the next middleware in the chain
+- `done` keeps track of how many asynchronous middleware have invoked `done` and passes
+   control to the target method when ALL asynchronous middleware have invoked `done`
+
+We declare pre middleware that is asynchronous by passing a 3rd boolean argument to our `pre`
+definition method.
+
+We illustrate via the asynchronous validation example mentioned above:
+
+    Document.hook('save', function targetFn (callback) {
+      // Save logic goes here
+      // ...
+      // This only gets run once the two `done`s are both invoked via preOne and preTwo.
+    });
+
+    Document.pre('set', function preOne (next, doneOne, callback) {
+      remoteServiceOne.validate(this.serialize(), function (err, isValid) {
+        // The code in here will probably be run after the `next` below this block
+        // and could possibly be run after the console.log("Hola") in `preTwo
+        if (err) return doneOne(err);
+        if (isValid) doneOne();
+      });
+      next(); // Pass control to the next middleware
+    }, true); // true marks this as asynchronous middleware
+    
+    // We will suppose that we need 2 different remote services to validate our document
+    Document.pre('set', function preTwo (next, doneTwo, callback) {
+      remoteServiceTwo.validate(this.serialize(), function (err, isValid) {
+        if (err) return doneTwo(err);
+        if (isValid) doneTwo();
+      });
+    }, true);
+    
+    // While preOne and preTwo are asynchronous, preThree is a synchronous pre middleware
+    Document.pre('set', function preThree (next, callback) {
+      next();
+    });
+    
+    var doc = new Document();
+    doc.save( function (err, doc) {
+      // Do stuff with the saved doc here...
+    });
+
+In the above example, flow control may happen in the following way:
+
+(1) doc.save -> (2) preOne --(next)--> (3) preTwo --(next)--> (4) preThree --(next)--> (wait for dones to invoke) -> (5) doneTwo -> (6) doneOne -> (7) targetFn
+
+So what's happening is that:
+
+1. You call `doc.save(...)`
+2. First, your preOne middleware gets executed. It makes a remote call to the validation service and `next()`s to the preTwo middleware.
+3. Now, your preTwo middleware gets executed. It makes a remote call to another validation service and `next()`s to the preThree middleware.
+4. Your preThree middleware gets executed. It immediately `next()`s. But nothing else gets executing until both `doneOne` and `doneTwo` are invoked inside the callbacks handling the response from the two valiation services.
+5. We will suppose that validation remoteServiceTwo returns a response to us first. In this case, we call `doneTwo` inside the callback to remoteServiceTwo.
+6. Some fractions of a second later, remoteServiceOne returns a response to us. In this case, we call `doneOne` inside the callback to remoteServiceOne.
+7. `hooks` implementation keeps track of how many asynchronous middleware has been defined per target function. It detects that both asynchronous pre middlewares (`preOne` and `preTwo`) have finally called their `done` functions (`doneOne` and `doneTwo`), so the implementation finally invokes our `targetFn` (i.e., our core `save` business logic).
 
 ## Tests
 To run the tests:
