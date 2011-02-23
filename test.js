@@ -346,5 +346,42 @@ module.exports = {
     });
     var a = new A();
     a.set('hello', 'world');
+  },
+
+  'should not invoke the target method until all asynchronous middleware have invoked dones': function () {
+    var counter = 0;
+    var A = function () {};
+    _.extend(A, hooks);
+    A.hook('set', function (path, val) {
+      counter++;
+      this[path] = val;
+      counter.should.equal(7);
+    });
+    A.pre('set', function (next, path, val) {
+      counter++;
+      next();
+    });
+    A.pre('set', function (next, done, path, val) {
+      counter++;
+      setTimeout(function () {
+        counter++;
+        done();
+      }, 1000);
+      next();
+    }, true);
+    A.pre('set', function (next, path, val) {
+      counter++;
+      next();
+    });
+    A.pre('set', function (next, done, path, val) {
+      counter++;
+      setTimeout(function () {
+        counter++;
+        done();
+      }, 500);
+      next();
+    }, true);
+    var a = new A();
+    a.set('hello', 'world');
   }
 };
