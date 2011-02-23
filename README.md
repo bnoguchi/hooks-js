@@ -25,21 +25,23 @@ methods.
 ## Example
 We can use `hooks` to add validation and background jobs in the following way:
     var hooks = require('hooks')
-      , Model = require('./path/to/some/model/with/save');
+      , Document = require('./path/to/some/document/with/save');
 
     // Add hooks' methods: `hook`, `pre`, and `post`    
     for (var k in hooks) {
-      Model.prototype[k] = hooks[k];
+      Document.prototype[k] = hooks[k];
     }
 
-    Model.hook('save', Model.prototype.save);
+    Document.hook('save', Document.prototype.save);
 
-    Model.pre('save', function validate (next, halt) {
+    Document.pre('save', function validate (next) {
+      // The `this` context inside of `pre` and `post` functions
+      // is the Document instance
       if (this.isValid()) next();
-      else halt();
+      else next(new Error("Invalid"));
     });
 
-    Model.post('save', function createJob (next, halt) {
+    Document.post('save', function createJob () {
       this.sendToBackgroundQueue();
     });
 
@@ -48,17 +50,19 @@ We structure pres and posts as middleware to give you maximum flexibility:
 
 1. You can define **multiple** pres (or posts) for a single method.
 2. These pres (or posts) are then executed as a chain of methods.
-3. Any functions in this middleware chain can choose to halt the chain's execution. If this occurs, then none of the other middleware in the chain will execute, and the main method (e.g., `save`) will not execute. This is nice, for example, when we don't want a document to save if it is invalid.
+3. Any functions in this middleware chain can choose to halt the chain's execution by `next`ing an Error from that middleware function. If this occurs, then none of the other middleware in the chain will execute, and the main method (e.g., `save`) will not execute. This is nice, for example, when we don't want a document to save if it is invalid.
 
 ## Defining multiple pres (or posts)
 `pre` is chainable, so you can define multiple pres via:
-    Model.pre('save', function (next, halt) {
+    Document.pre('save', function (next, halt) {
       console.log("hello");
-      next();
     }).pre('save', function (next, halt) {
       console.log("world");
-      next();
     });
+
+As soon as one pre finishes executing, the next one will be invoked, and so on.
+
+## Error Handling
 
 ## Mutating Arguments via Middleware
 `pre` and `post` middleware can also accept the intended arguments for the method
@@ -68,12 +72,12 @@ the main method itself.
 
 As a simple example, let's define a method `set` that just sets a key, value pair.
 If we want to namespace the key, we can do so by adding a `pre` middleware hook
-that runs before `set`, alters the arguments, and passes them onto `set`:
-    Document.hook('set', function (path, val) {
-      this[path] = val;
+that runs before `set`, alters the arguments by namespacing the `key` argument, and passes them onto `set`:
+    Document.hook('set', function (key, val) {
+      this[key] = val;
     });
-    Document.pre('set', function (next, halt, path, val) {
-      next('namespace-' + path, val);
+    Document.pre('set', function (next, key, val) {
+      next('namespace-' + key, val);
     });
     var doc = new Document();
     doc.set('hello', 'world');
@@ -84,7 +88,7 @@ As you can see above, we pass arguments via `next`.
 
 Sometimes, the meaning of arguments changes depending on how many arguments there are
 and/or what the argument types are. You can handle this in the following way:
-    Document.pre('set', function (next, halt, args) {
+    Document.pre('set', function (args) {
       // args is the array of arguments
       if (args.length === 1) {
         // Handle scenario where only 1 arguments is passed
@@ -94,6 +98,19 @@ and/or what the argument types are. You can handle this in the following way:
         // Handle other arguments.length scenarios
       }
     });
+
+If you are not mutating the arguments, then you can pass zero arguments
+to `next`, and the next middleware function will still have access
+to the arguments.
+
+## Asynchronous `pre` middleware
+Some scenarios call for asynchronous middleware.
+
+    Document.pre('set', function (done, key, value) {
+    }, true);
+
+For instance, you may only want to save a Document only after you have checked
+that the Document is valid according to a remote service.
 
 ## Tests
 To run the tests:
