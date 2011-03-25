@@ -114,16 +114,16 @@ module.exports = {
   },
 
   pre: function (name, fn, isAsync) {
-    var proto = this.prototype
+    var proto = this.prototype || this
       , pres = proto._pres = proto._pres || {};
     if (fn.isAsync = isAsync) {
-      this.prototype[name].numAsyncPres++;
+      proto[name].numAsyncPres++;
     }
     (pres[name] = pres[name] || []).push(fn);
     return this;
   },
-  post: function (name, fn, isAsync) {
-    var proto = this.prototype
+  post: function (name, fn) {
+    var proto = this.prototype || this
       , posts = proto._posts = proto._posts || {};
     (posts[name] = posts[name] || []).push(fn);
     return this;
