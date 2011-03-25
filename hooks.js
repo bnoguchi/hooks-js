@@ -127,5 +127,19 @@ module.exports = {
       , posts = proto._posts = proto._posts || {};
     (posts[name] = posts[name] || []).push(fn);
     return this;
+  },
+  removePre: function (name, fnToRemove) {
+    var proto = this.prototype || this
+      , pres = proto._pres || (proto._pres || {});
+    if (!pres[name]) return this;
+    if (arguments.length === 1) {
+      // Remove all pre callbacks for hook `name`
+      pres[name].length = 0;
+    } else {
+      pres[name] = pres[name].filter( function (currFn) {
+        return currFn !== fnToRemove;
+      });
+    }
+    return this;
   }
 };

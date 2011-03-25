@@ -383,5 +383,50 @@ module.exports = {
     }, true);
     var a = new A();
     a.set('hello', 'world');
+  },
+
+  'should be able to remove a particular pre': function () {
+    var A = function () {}
+      , preTwo;
+    _.extend(A, hooks);
+    A.hook('save', function () {
+      this.value = 1;
+    });
+    A.pre('save', function (next) {
+      this.preValueOne = 2;
+      next();
+    });
+    A.pre('save', preTwo = function (next) {
+      this.preValueTwo = 4;
+      next();
+    });
+    A.removePre('save', preTwo);
+    var a = new A();
+    a.save();
+    a.value.should.equal(1);
+    a.preValueOne.should.equal(2);
+    should.strictEqual(undefined, a.preValueTwo);
+  },
+
+  'should be able to remove all pres associated with a hook': function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.hook('save', function () {
+      this.value = 1;
+    });
+    A.pre('save', function (next) {
+      this.preValueOne = 2;
+      next();
+    });
+    A.pre('save', function (next) {
+      this.preValueTwo = 4;
+      next();
+    });
+    A.removePre('save');
+    var a = new A();
+    a.save();
+    a.value.should.equal(1);
+    should.strictEqual(undefined, a.preValueOne);
+    should.strictEqual(undefined, a.preValueTwo);
   }
 };
