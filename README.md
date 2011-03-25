@@ -29,7 +29,7 @@ We can use `hooks` to add validation and background jobs in the following way:
 
     // Add hooks' methods: `hook`, `pre`, and `post`    
     for (var k in hooks) {
-      Document.prototype[k] = hooks[k];
+      Document[k] = hooks[k];
     }
 
     // Define a new method that is able to invoke pre and post middleware
