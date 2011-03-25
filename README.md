@@ -223,6 +223,15 @@ So what's happening is that:
 6. Some fractions of a second later, remoteServiceOne returns a response to us. In this case, we call `doneOne` inside the callback to remoteServiceOne.
 7. `hooks` implementation keeps track of how many asynchronous middleware has been defined per target function. It detects that both asynchronous pre middlewares (`preOne` and `preTwo`) have finally called their `done` functions (`doneOne` and `doneTwo`), so the implementation finally invokes our `targetFn` (i.e., our core `save` business logic).
 
+## Removing Pres
+
+You can remove a particular pre associated with a hook:
+    Document.pre('set', someFn);
+    Document.removePre('set', someFn);
+
+And you can also remove all pres associated with a hook:
+    Document.removePre('set'); // Removes all declared `pre`s on the hook 'set'
+
 ## Tests
 To run the tests:
     make test
