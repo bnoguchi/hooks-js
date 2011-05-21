@@ -23,7 +23,7 @@
     "expresso": ">= 0.7.3"
   },
   "engines": {
-    "node": ">=0.4.0"
+    "node": ">=0.4.x"
   },
   "licenses": [ "MIT" ]
 }
