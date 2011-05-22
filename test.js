@@ -406,6 +406,30 @@ module.exports = {
     a.set('foo', 'bar');
   },
 
+  'asynchronous middleware should be able to pass an error via `done`, stopping the middleware chain': function () {
+    var counter = 0;
+    var A = function () {};
+    _.extend(A, hooks);
+    A.hook('set', function (path, val, fn) {
+      counter++;
+      this[path] = val;
+      fn(null);
+    });
+    A.pre('set', function (next, done, path, val, fn) {
+      setTimeout(function () {
+        counter++;
+        done(new Error);
+      }, 1000);
+      next();
+    }, true);
+    var a = new A();
+    a.set('hello', 'world', function (err) {
+      err.should.be.an.instanceof(Error);
+      should.strictEqual(undefined, a['hello']);
+      counter.should.eql(1);
+    });
+  },
+
   'should be able to remove a particular pre': function () {
     var A = function () {}
       , preTwo;

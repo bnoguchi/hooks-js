@@ -113,16 +113,35 @@ Then, we can pass errors to this handler from a pre or post middleware function:
       next(new Error());
     });
 
-Alternatively, you do not need to provide a distinct error handler. If the main method that you
-are surrounding with pre and post middleware expects a potential error as one of its arguments,
-then you can make the main method also be the error handler, by not specifying an error handler
-as the 3rd argument to `hook`:
-    Document.hook('save', function (err, callback) {
-      // We can pass err via `next` in any of our pre or post middleware functions
-      if (err) console.error(err);
-      // Save logic goes here
-      ...
-    });
+Alternatively, you do not need to provide a distinct error handler. There are 2 default fallbacks.
+
+1. If the main method that you are surrounding with pre and post middleware expects its last argument to be a function
+   with callback signature `function (error, ...)`, then that callback becomes the error handler, by not specifying an
+   error handler.
+   
+        Document.hook('save', function (callback) {
+          // Save logic goes here
+          ...
+        });
+        
+        var doc = new Document();
+        doc.save( function (err, saved) {
+          // We can pass err via `next` in any of our pre or post middleware functions
+          if (err) console.error(err);
+          
+          // Rest of callback logic follows ...
+        });
+   
+2. If the main method that you are surrounding with pre and post middleware expects a potential error as one of its arguments,
+   then you can make the main method also be the error handler, by not specifying an error handler
+   as the 3rd argument to `hook`:
+   
+        Document.hook('save', function (err, callback) {
+          // We can pass err via `next` in any of our pre or post middleware functions
+          if (err) console.error(err);
+          // Save logic goes here
+          ...
+        });
 
 ## Mutating Arguments via Middleware
 `pre` and `post` middleware can also accept the intended arguments for the method
@@ -201,7 +220,9 @@ We accomplish asynchronous middleware by adding a second kind of flow control ca
 
 - `next` passes control to the next middleware in the chain
 - `done` keeps track of how many asynchronous middleware have invoked `done` and passes
-   control to the target method when ALL asynchronous middleware have invoked `done`
+   control to the target method when ALL asynchronous middleware have invoked `done`. If
+   you pass an `Error` to `done`, then the error is handled, and the main method that is
+   wrapped by pres and posts will not get invoked.
 
 We declare pre middleware that is asynchronous by passing a 3rd boolean argument to our `pre`
 definition method.

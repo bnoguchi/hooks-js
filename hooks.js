@@ -102,7 +102,10 @@ module.exports = {
             }
           };
       if (_asyncsLeft) {
-        function _asyncsDone () {
+        function _asyncsDone (err) {
+          if (err && err instanceof Error) {
+            return handleError(err);
+          }
           --_asyncsLeft || _done.apply(self, hookArgs);
         }
       }
