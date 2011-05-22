@@ -117,10 +117,7 @@ module.exports = {
     var proto = this.prototype || this
       , pres = proto._pres = proto._pres || {};
 
-    // Lazy hook setup
-    if ('undefined' === typeof proto[name].numAsyncPres) {
-      this.hook(name, proto[name]);
-    }
+    this._lazySetupHooks(proto, name);
 
     if (fn.isAsync = isAsync) {
       proto[name].numAsyncPres++;
@@ -133,11 +130,7 @@ module.exports = {
     var proto = this.prototype || this
       , posts = proto._posts = proto._posts || {};
     
-    // Lazy hook setup
-    if ('undefined' === typeof proto[name].numAsyncPres) {
-      this.hook(name, proto[name]);
-    }
-
+    this._lazySetupHooks(proto, name);
     (posts[name] = posts[name] || []).push(fn);
     return this;
   },
@@ -154,5 +147,17 @@ module.exports = {
       });
     }
     return this;
+  },
+  _lazySetupHooks: function (proto, methodName) {
+    if ('undefined' === typeof proto[methodName].numAsyncPres) {
+      if (!proto[methodName].error) {
+        proto[methodName].error = function error (err) {
+          var lastArg = args[args.length-1];
+          if (typeof lastArg == 'function')
+            lastArg.call(proto, err);
+        };
+      }
+      this.hook(methodName, proto[methodName], proto[methodName].error);
+    }
   }
 };
