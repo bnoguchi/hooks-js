@@ -49,6 +49,39 @@ We can use `hooks` to add validation and background jobs in the following way:
       this.sendToBackgroundQueue();
     });
 
+If you already have defined `Document.prototype` methods for which you want pres and posts,
+then you do not need to explicitly invoke `Document.hook(...)`. Invoking `Document.pre(methodName, fn)`
+or `Document.post(methodName, fn)` will automatically and lazily change `Document.prototype[methodName]`
+so that it plays well with `hooks`. An equivalent way to implement the previous example is:
+
+```javascript
+var hooks = require('hooks')
+  , Document = require('./path/to/some/document/constructor');
+
+// Add hooks' methods: `hook`, `pre`, and `post`    
+for (var k in hooks) {
+  Document[k] = hooks[k];
+}
+
+Document.prototype.save = function () {
+  // ...
+};
+
+// Define a middleware function to be invoked before 'save'
+Document.pre('save', function validate (next) {
+  // The `this` context inside of `pre` and `post` functions
+  // is the Document instance
+  if (this.isValid()) next();      // next() passes control to the next middleware
+                                   // or to the target method itself
+  else next(new Error("Invalid")); // next(error) invokes an error callback
+});
+
+// Define a middleware function to be invoked after 'save'
+Document.post('save', function createJob () {
+  this.sendToBackgroundQueue();
+});
+```
+
 ## Pres and Posts as Middleware
 We structure pres and posts as middleware to give you maximum flexibility:
 
