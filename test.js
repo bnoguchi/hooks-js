@@ -4,6 +4,7 @@ var hooks = require('./hooks')
   , _ = require('underscore');
 
 // TODO Add in test for making sure all pres get called if pre is defined directly on an instance.
+// TODO Test for calling `done` twice or `next` twice in the same function counts only once
 module.exports = {
   'should be able to assign multiple hooks at once': function () {
     var A = function () {};
@@ -404,6 +405,54 @@ module.exports = {
     var a = new A();
     a.set('hello', 'world');
     a.set('foo', 'bar');
+  },
+
+  'calling the same done multiple times should have the effect of only calling it once': function () {
+    var A = function () {
+      this.acked = false;
+    };
+    _.extend(A, hooks);
+    A.hook('ack', function () {
+      console.log("UH OH, YOU SHOULD NOT BE SEEING THIS");
+      this.acked = true;
+    });
+    A.pre('ack', function (next, done) {
+      next();
+      done();
+      done();
+    }, true);
+    A.pre('ack', function (next, done) {
+      next();
+      // Notice that done() is not invoked here
+    }, true);
+    var a = new A();
+    a.ack();
+    setTimeout( function () {
+      a.acked.should.be.false;
+    }, 1000);
+  },
+
+  'calling the same next multiple times should have the effect of only calling it once': function () {
+    var A = function () {
+      this.acked = false;
+    };
+    _.extend(A, hooks);
+    A.hook('ack', function () {
+      console.log("UH OH, YOU SHOULD NOT BE SEEING THIS");
+      this.acked = true;
+    });
+    A.pre('ack', function (next) {
+      next();
+      next();
+    });
+    A.pre('ack', function (next) {
+      // Notice that next() is not invoked here
+    });
+    var a = new A();
+    a.ack();
+    setTimeout( function () {
+      a.acked.should.be.false;
+    }, 1000);
   },
 
   'asynchronous middleware should be able to pass an error via `done`, stopping the middleware chain': function () {

@@ -1,26 +1,3 @@
-/**
- * Hooks are useful if we want to add a method that automatically has `pre` and `post` hooks.
- * For example, it would be convenient to have `pre` and `post` hooks for `save`.
- * _.extend(Model, mixins.hooks);
- * Model.hook('save', function () {
- *  console.log('saving');
- * });
- * Model.pre('save', function (next, done) {
- *  console.log('about to save');
- *  next();
- * });
- * Model.post('save', function (next, done) {
- *  console.log('saved');
- *  next();
- * });
- *
- * var m = new Model();
- * m.save();
- * // about to save
- * // saving
- * // saved 
- */
-
 // TODO Add in pre and post skipping options
 module.exports = {
   /**
@@ -67,8 +44,8 @@ module.exports = {
               if (currPre.length < 1)
                 throw new Error("Your pre must have a next argument -- e.g., function (next, ...)");
               preArgs = (currPre.isAsync
-                          ? [_next, _asyncsDone]
-                          : [_next]).concat(hookArgs);
+                          ? [once(_next), once(_asyncsDone)]
+                          : [once(_next)]).concat(hookArgs);
               return currPre.apply(self, preArgs);
             } else if (!proto[name].numAsyncPres) {
               return _done.apply(self, hookArgs);
@@ -93,7 +70,7 @@ module.exports = {
                   currPost = posts[current_]
                   if (currPost.length < 1)
                     throw new Error("Your post must have a next argument -- e.g., function (next, ...)");
-                  postArgs = [next_].concat(hookArgs);
+                  postArgs = [once(next_)].concat(hookArgs);
                   return currPost.apply(self, postArgs);
                 }
               };
@@ -164,3 +141,11 @@ module.exports = {
     }
   }
 };
+
+function once (fn, scope) {
+  return function fnWrapper () {
+    if (fnWrapper.hookCalled) return;
+    fn.apply(scope, arguments);
+    fnWrapper.hookCalled = true;
+  };
+}
