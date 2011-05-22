@@ -209,25 +209,30 @@ Finally, you can add arguments that downstream middleware can also see:
     var doc = new Document()
     doc.set('hey', 'there');
 
-## Asynchronous `pre` middleware
-Some scenarios call for asynchronous middleware.
+## Parallel `pre` middleware
+
+All middleware up to this point has been "serial" middleware -- i.e., middleware whose logic
+is executed as a serial chain.
+
+Some scenarios call for parallel middleware -- i.e., middleware that can wait for several
+asynchronous services at once to respond.
 
 For instance, you may only want to save a Document only after you have checked
-that the Document is valid according to a remote service.
+that the Document is valid according to two different remote services.
 
 We accomplish asynchronous middleware by adding a second kind of flow control callback
 (the only flow control callback so far has been `next`), called `done`.
 
 - `next` passes control to the next middleware in the chain
-- `done` keeps track of how many asynchronous middleware have invoked `done` and passes
-   control to the target method when ALL asynchronous middleware have invoked `done`. If
+- `done` keeps track of how many parallel middleware have invoked `done` and passes
+   control to the target method when ALL parallel middleware have invoked `done`. If
    you pass an `Error` to `done`, then the error is handled, and the main method that is
    wrapped by pres and posts will not get invoked.
 
-We declare pre middleware that is asynchronous by passing a 3rd boolean argument to our `pre`
+We declare pre middleware that is parallel by passing a 3rd boolean argument to our `pre`
 definition method.
 
-We illustrate via the asynchronous validation example mentioned above:
+We illustrate via the parallel validation example mentioned above:
 
     Document.hook('save', function targetFn (callback) {
       // Save logic goes here
@@ -235,7 +240,7 @@ We illustrate via the asynchronous validation example mentioned above:
       // This only gets run once the two `done`s are both invoked via preOne and preTwo.
     });
 
-    Document.pre('set', function preOne (next, doneOne, callback) {
+    Document.pre('save', function preOne (next, doneOne, callback) {
       remoteServiceOne.validate(this.serialize(), function (err, isValid) {
         // The code in here will probably be run after the `next` below this block
         // and could possibly be run after the console.log("Hola") in `preTwo
@@ -243,18 +248,19 @@ We illustrate via the asynchronous validation example mentioned above:
         if (isValid) doneOne();
       });
       next(); // Pass control to the next middleware
-    }, true); // true marks this as asynchronous middleware
+    }, true); // true marks this as parallel middleware
     
     // We will suppose that we need 2 different remote services to validate our document
-    Document.pre('set', function preTwo (next, doneTwo, callback) {
+    Document.pre('save', function preTwo (next, doneTwo, callback) {
       remoteServiceTwo.validate(this.serialize(), function (err, isValid) {
         if (err) return doneTwo(err);
         if (isValid) doneTwo();
       });
+      next();
     }, true);
     
-    // While preOne and preTwo are asynchronous, preThree is a synchronous pre middleware
-    Document.pre('set', function preThree (next, callback) {
+    // While preOne and preTwo are parallel, preThree is a serial pre middleware
+    Document.pre('save', function preThree (next, callback) {
       next();
     });
     
@@ -275,7 +281,7 @@ So what's happening is that:
 4. Your preThree middleware gets executed. It immediately `next()`s. But nothing else gets executing until both `doneOne` and `doneTwo` are invoked inside the callbacks handling the response from the two valiation services.
 5. We will suppose that validation remoteServiceTwo returns a response to us first. In this case, we call `doneTwo` inside the callback to remoteServiceTwo.
 6. Some fractions of a second later, remoteServiceOne returns a response to us. In this case, we call `doneOne` inside the callback to remoteServiceOne.
-7. `hooks` implementation keeps track of how many asynchronous middleware has been defined per target function. It detects that both asynchronous pre middlewares (`preOne` and `preTwo`) have finally called their `done` functions (`doneOne` and `doneTwo`), so the implementation finally invokes our `targetFn` (i.e., our core `save` business logic).
+7. `hooks` implementation keeps track of how many parallel middleware has been defined per target function. It detects that both asynchronous pre middlewares (`preOne` and `preTwo`) have finally called their `done` functions (`doneOne` and `doneTwo`), so the implementation finally invokes our `targetFn` (i.e., our core `save` business logic).
 
 ## Removing Pres
 
