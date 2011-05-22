@@ -116,15 +116,28 @@ module.exports = {
   pre: function (name, fn, isAsync) {
     var proto = this.prototype || this
       , pres = proto._pres = proto._pres || {};
+
+    // Lazy hook setup
+    if ('undefined' === typeof proto[name].numAsyncPres) {
+      this.hook(name, proto[name]);
+    }
+
     if (fn.isAsync = isAsync) {
       proto[name].numAsyncPres++;
     }
+
     (pres[name] = pres[name] || []).push(fn);
     return this;
   },
-  post: function (name, fn) {
+  post: function (name, fn, isAsync) {
     var proto = this.prototype || this
       , posts = proto._posts = proto._posts || {};
+    
+    // Lazy hook setup
+    if ('undefined' === typeof proto[name].numAsyncPres) {
+      this.hook(name, proto[name]);
+    }
+
     (posts[name] = posts[name] || []).push(fn);
     return this;
   },

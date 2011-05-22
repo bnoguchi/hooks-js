@@ -385,6 +385,27 @@ module.exports = {
     a.set('hello', 'world');
   },
 
+  'invoking a method twice should run its async middleware twice': function () {
+    var counter = 0;
+    var A = function () {};
+    _.extend(A, hooks);
+    A.hook('set', function (path, val) {
+      this[path] = val;
+      if (path === 'hello') counter.should.equal(1);
+      if (path === 'foo') counter.should.equal(2);
+    });
+    A.pre('set', function (next, done, path, val) {
+      setTimeout(function () {
+        counter++;
+        done();
+      }, 1000);
+      next();
+    }, true);
+    var a = new A();
+    a.set('hello', 'world');
+    a.set('foo', 'bar');
+  },
+
   'should be able to remove a particular pre': function () {
     var A = function () {}
       , preTwo;
@@ -428,5 +449,36 @@ module.exports = {
     a.value.should.equal(1);
     should.strictEqual(undefined, a.preValueOne);
     should.strictEqual(undefined, a.preValueTwo);
+  },
+
+  '#pre should lazily make a method hookable': function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.prototype.save = function () {
+      this.value = 1;
+    };
+    A.pre('save', function (next) {
+      this.preValue = 2;
+      next();
+    });
+    var a = new A();
+    a.save();
+    a.value.should.equal(1);
+    a.preValue.should.equal(2);
+  },
+
+  '#post should lazily make a method hookable': function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.prototype.save = function () {
+      this.value = 1;
+    };
+    A.post('save', function (next) {
+      this.value = 2;
+      next();
+    });
+    var a = new A();
+    a.save();
+    a.value.should.equal(2);
   }
 };
