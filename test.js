@@ -480,5 +480,18 @@ module.exports = {
     var a = new A();
     a.save();
     a.value.should.equal(2);
+  },
+
+  "a lazy hooks setup should handle errors via a method's last argument, if it's a callback": function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.prototype.save = function (fn) {};
+    A.pre('save', function (next) {
+      next(new Error("hi there"));
+    });
+    var a = new A();
+    a.save( function (err) {
+      err.should.be.an.instanceof(Error);
+    });
   }
 };

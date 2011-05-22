@@ -37,8 +37,6 @@ module.exports = {
       return;
     }
 
-    if (!errorCb) errorCb = fn;
-
     var proto = this.prototype || this
       , pres = proto._pres = proto._pres || {}
       , posts = proto._posts = proto._posts || {};
@@ -48,14 +46,16 @@ module.exports = {
     proto[name] = function () {
       var self = this
         , hookArgs // arguments eventually passed to the hook - are mutable
+        , lastArg = arguments[arguments.length-1]
         , pres = this._pres[name]
         , posts = this._posts[name]
         , _total = pres.length
         , _current = -1
         , _asyncsLeft = proto[name].numAsyncPres
         , _next = function () {
-            if (arguments[0] instanceof Error)
-              return errorCb(arguments[0]);
+            if (arguments[0] instanceof Error) {
+              return handleError(arguments[0]);
+            }
             var _args = Array.prototype.slice.call(arguments)
               , currPre
               , preArgs;
@@ -82,8 +82,9 @@ module.exports = {
               total_ = posts.length;
               current_ = -1;
               next_ = function () {
-                if (arguments[0] instanceof Error)
-                  return errorCb(arguments[0]);
+                if (arguments[0] instanceof Error) {
+                  return handleError(arguments[0]);
+                }
                 var args_ = Array.prototype.slice.call(arguments, 1)
                   , currPost
                   , postArgs;
@@ -104,6 +105,12 @@ module.exports = {
         function _asyncsDone () {
           --_asyncsLeft || _done.apply(self, hookArgs);
         }
+      }
+      function handleError (err) {
+        if (errorCb) return errorCb(err);
+        if ('function' == typeof lastArg)
+          return lastArg(err);
+        return fn(err);
       }
       return _next.apply(this, arguments);
     };
@@ -150,14 +157,7 @@ module.exports = {
   },
   _lazySetupHooks: function (proto, methodName) {
     if ('undefined' === typeof proto[methodName].numAsyncPres) {
-      if (!proto[methodName].error) {
-        proto[methodName].error = function error (err) {
-          var lastArg = args[args.length-1];
-          if (typeof lastArg == 'function')
-            lastArg.call(proto, err);
-        };
-      }
-      this.hook(methodName, proto[methodName], proto[methodName].error);
+      this.hook(methodName, proto[methodName]);
     }
   }
 };
