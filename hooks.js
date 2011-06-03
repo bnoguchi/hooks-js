@@ -100,7 +100,11 @@ module.exports = {
     return this;
   },
 
-  pre: function (name, fn, isAsync) {
+  pre: function (name, isAsync, fn) {
+    if (arguments.length === 2) {
+      fn = isAsync;
+      isAsync = false;
+    }
     var proto = this.prototype || this
       , pres = proto._pres = proto._pres || {};
 
@@ -113,7 +117,11 @@ module.exports = {
     (pres[name] = pres[name] || []).push(fn);
     return this;
   },
-  post: function (name, fn, isAsync) {
+  post: function (name, isAsync, fn) {
+    if (arguments.length === 2) {
+      fn = isAsync;
+      isAsync = false;
+    }
     var proto = this.prototype || this
       , posts = proto._posts = proto._posts || {};
     

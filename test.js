@@ -103,9 +103,9 @@ module.exports = {
     }, function (err) {
       counter++;
     });
-    A.pre('save', function (next, done) {
+    A.pre('save', true, function (next, done) {
       next(new Error());
-    }, true);
+    });
     var a = new A();
     a.save();
     counter.should.equal(1);
@@ -199,9 +199,9 @@ module.exports = {
       if (err instanceof Error) counter++;
       this.value = 1;
     });
-    A.pre('save', function (next, done) {
+    A.pre('save', true, function (next, done) {
       next(new Error());
-    }, true);
+    });
     var a = new A();
     a.save();
     counter.should.equal(1);
@@ -362,26 +362,26 @@ module.exports = {
       counter++;
       next();
     });
-    A.pre('set', function (next, done, path, val) {
+    A.pre('set', true, function (next, done, path, val) {
       counter++;
       setTimeout(function () {
         counter++;
         done();
       }, 1000);
       next();
-    }, true);
+    });
     A.pre('set', function (next, path, val) {
       counter++;
       next();
     });
-    A.pre('set', function (next, done, path, val) {
+    A.pre('set', true, function (next, done, path, val) {
       counter++;
       setTimeout(function () {
         counter++;
         done();
       }, 500);
       next();
-    }, true);
+    });
     var a = new A();
     a.set('hello', 'world');
   },
@@ -395,13 +395,13 @@ module.exports = {
       if (path === 'hello') counter.should.equal(1);
       if (path === 'foo') counter.should.equal(2);
     });
-    A.pre('set', function (next, done, path, val) {
+    A.pre('set', true, function (next, done, path, val) {
       setTimeout(function () {
         counter++;
         done();
       }, 1000);
       next();
-    }, true);
+    });
     var a = new A();
     a.set('hello', 'world');
     a.set('foo', 'bar');
@@ -416,15 +416,15 @@ module.exports = {
       console.log("UH OH, YOU SHOULD NOT BE SEEING THIS");
       this.acked = true;
     });
-    A.pre('ack', function (next, done) {
+    A.pre('ack', true, function (next, done) {
       next();
       done();
       done();
-    }, true);
-    A.pre('ack', function (next, done) {
+    });
+    A.pre('ack', true, function (next, done) {
       next();
       // Notice that done() is not invoked here
-    }, true);
+    });
     var a = new A();
     a.ack();
     setTimeout( function () {
@@ -464,13 +464,13 @@ module.exports = {
       this[path] = val;
       fn(null);
     });
-    A.pre('set', function (next, done, path, val, fn) {
+    A.pre('set', true, function (next, done, path, val, fn) {
       setTimeout(function () {
         counter++;
         done(new Error);
       }, 1000);
       next();
-    }, true);
+    });
     var a = new A();
     a.set('hello', 'world', function (err) {
       err.should.be.an.instanceof(Error);

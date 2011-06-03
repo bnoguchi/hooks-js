@@ -240,7 +240,8 @@ We illustrate via the parallel validation example mentioned above:
       // This only gets run once the two `done`s are both invoked via preOne and preTwo.
     });
 
-    Document.pre('save', function preOne (next, doneOne, callback) {
+                         // true marks this as parallel middleware
+    Document.pre('save', true, function preOne (next, doneOne, callback) {
       remoteServiceOne.validate(this.serialize(), function (err, isValid) {
         // The code in here will probably be run after the `next` below this block
         // and could possibly be run after the console.log("Hola") in `preTwo
@@ -248,16 +249,16 @@ We illustrate via the parallel validation example mentioned above:
         if (isValid) doneOne();
       });
       next(); // Pass control to the next middleware
-    }, true); // true marks this as parallel middleware
+    });
     
     // We will suppose that we need 2 different remote services to validate our document
-    Document.pre('save', function preTwo (next, doneTwo, callback) {
+    Document.pre('save', true, function preTwo (next, doneTwo, callback) {
       remoteServiceTwo.validate(this.serialize(), function (err, isValid) {
         if (err) return doneTwo(err);
         if (isValid) doneTwo();
       });
       next();
-    }, true);
+    });
     
     // While preOne and preTwo are parallel, preThree is a serial pre middleware
     Document.pre('save', function preThree (next, callback) {
