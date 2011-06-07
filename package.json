@@ -1,7 +1,7 @@
 {
   "name": "hooks",
   "description": "Adds pre and post hook functionality to your JavaScript methods.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "keywords": [ "node", "hooks", "middleware", "pre", "post" ],
   "homepage": "https://github.com/bnoguchi/hooks-js/",
   "repository": {
