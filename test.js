@@ -191,7 +191,24 @@ module.exports = {
     a.save();
     a.value.should.equal(3);
   },
-  'should default to the hook method as the error handler': function () {
+  "should fall back first to the hook method's last argument as the error handler if it is a function of arity 1 or 2": function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    var counter = 0;
+    A.hook('save', function (callback) {
+      this.value = 1;
+    });
+    A.pre('save', true, function (next, done) {
+      next(new Error());
+    });
+    var a = new A();
+    a.save( function (err) {
+      if (err instanceof Error) counter++;
+    });
+    counter.should.equal(1);
+    should.deepEqual(undefined, a.value);
+  },
+  'should fall back last to the hook method as the error handler': function () {
     var A = function () {};
     _.extend(A, hooks);
     var counter = 0;
@@ -206,6 +223,38 @@ module.exports = {
     a.save();
     counter.should.equal(1);
     assert.equal(typeof a.value, 'undefined');
+  },
+  "should proceed without mutating arguments if `next(null)` is called in a serial pre, and the last argument of the target method is a callback with node-like signature function (err, obj) {...} or function (err) {...}": function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    var counter = 0;
+    A.prototype.save = function (callback) {
+      this.value = 1;
+      callback();
+    };
+    A.pre('save', function (next) {
+      next(null);
+    });
+    var a = new A();
+    a.save( function (err) {
+      if (err instanceof Error) counter++;
+      else counter--;
+    });
+    counter.should.equal(-1);
+    a.value.should.eql(1);
+  },
+  "should proceed with mutating arguments if `next(null)` is callback in a serial pre, and the last argument of the target method is not a function": function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.prototype.set = function (v) {
+      this.value = v;
+    };
+    A.pre('set', function (next) {
+      next(null);
+    });
+    var a = new A();
+    a.set(1);
+    should.strictEqual(null, a.value);
   },
   'should not run any posts if a pre fails': function () {
     var A = function () {};
@@ -224,6 +273,7 @@ module.exports = {
     a.save();
     a.value.should.equal(1);
   },
+
   "can pass the hook's arguments verbatim to pres": function () {
     var A = function () {};
     _.extend(A, hooks);

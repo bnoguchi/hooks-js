@@ -36,7 +36,8 @@ module.exports = {
             var _args = Array.prototype.slice.call(arguments)
               , currPre
               , preArgs;
-            if (_args.length) hookArgs = _args;
+            if (_args.length && !(arguments[0] === null && typeof lastArg === 'function'))
+              hookArgs = _args;
             if (++_current < _total) {
               currPre = pres[_current]
               if (currPre.isAsync && currPre.length < 2)
