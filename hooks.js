@@ -88,9 +88,9 @@ module.exports = {
         }
       }
       function handleError (err) {
-        if (errorCb) return errorCb(err);
         if ('function' == typeof lastArg)
           return lastArg(err);
+        if (errorCb) return errorCb.call(self, err);
         throw err;
       }
       return _next.apply(this, arguments);

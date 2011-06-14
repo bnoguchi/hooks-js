@@ -208,6 +208,42 @@ module.exports = {
     counter.should.equal(1);
     should.deepEqual(undefined, a.value);
   },
+  'should fall back second to the default error handler if specified': function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    var counter = 0;
+    A.hook('save', function (callback) {
+      this.value = 1;
+    }, function (err) {
+      if (err instanceof Error) counter++;
+    });
+    A.pre('save', true, function (next, done) {
+      next(new Error());
+    });
+    var a = new A();
+    a.save();
+    counter.should.equal(1);
+    should.deepEqual(undefined, a.value);
+  },
+  'fallback default error handler should scope to the object': function () {
+    var A = function () {
+      this.counter = 0;
+    };
+    _.extend(A, hooks);
+    var counter = 0;
+    A.hook('save', function (callback) {
+      this.value = 1;
+    }, function (err) {
+      if (err instanceof Error) this.counter++;
+    });
+    A.pre('save', true, function (next, done) {
+      next(new Error());
+    });
+    var a = new A();
+    a.save();
+    a.counter.should.equal(1);
+    should.deepEqual(undefined, a.value);
+  },
   'should fall back last to throwing the error': function () {
     var A = function () {};
     _.extend(A, hooks);
@@ -597,7 +633,7 @@ module.exports = {
     a.preValue.should.equal(2);
   },
 
-  '#pre lazily making a method hookable should be able to provide an errorHandler as the last argument': function () {
+  '#pre lazily making a method hookable should be able to provide a default errorHandler as the last argument': function () {
     var A = function () {};
     var preValue = "";
     _.extend(A, hooks);

@@ -24,6 +24,7 @@ methods.
 
 ## Example
 We can use `hooks` to add validation and background jobs in the following way:
+
     var hooks = require('hooks')
       , Document = require('./path/to/some/document/constructor');
 
@@ -100,7 +101,7 @@ We structure pres and posts as middleware to give you maximum flexibility:
 As soon as one pre finishes executing, the next one will be invoked, and so on.
 
 ## Error Handling
-You can define an error handler by passing a 2nd function as the 3rd argument to `hook`:
+You can define a default error handler by passing a 2nd function as the 3rd argument to `hook`:
     Document.hook('set', function (path, val) {
       this[path] = val;
     }, function (err) {
@@ -113,35 +114,28 @@ Then, we can pass errors to this handler from a pre or post middleware function:
       next(new Error());
     });
 
-Alternatively, you do not need to provide a distinct error handler. There are 2 default fallbacks.
+If you do not set up a default handler, then `hooks` makes the default handler that just throws the `Error`.
 
-1. If the main method that you are surrounding with pre and post middleware expects its last argument to be a function
-   with callback signature `function (error, ...)`, then that callback becomes the error handler, by not specifying an
-   error handler.
+The default error handler can be over-rided on a per method invocation basis.
+
+If the main method that you are surrounding with pre and post middleware expects its last argument to be a function
+with callback signature `function (error, ...)`, then that callback becomes the error handler, over-riding the default
+error handler you may have set up.
    
-        Document.hook('save', function (callback) {
-          // Save logic goes here
-          ...
-        });
-        
-        var doc = new Document();
-        doc.save( function (err, saved) {
-          // We can pass err via `next` in any of our pre or post middleware functions
-          if (err) console.error(err);
-          
-          // Rest of callback logic follows ...
-        });
-   
-2. If the main method that you are surrounding with pre and post middleware expects a potential error as one of its arguments,
-   then you can make the main method also be the error handler, by not specifying an error handler
-   as the 3rd argument to `hook`:
-   
-        Document.hook('save', function (err, callback) {
-          // We can pass err via `next` in any of our pre or post middleware functions
-          if (err) console.error(err);
-          // Save logic goes here
-          ...
-        });
+```javascript
+Document.hook('save', function (callback) {
+  // Save logic goes here
+  ...
+});
+
+var doc = new Document();
+doc.save( function (err, saved) {
+  // We can pass err via `next` in any of our pre or post middleware functions
+  if (err) console.error(err);
+  
+  // Rest of callback logic follows ...
+});
+```
 
 ## Mutating Arguments via Middleware
 `pre` and `post` middleware can also accept the intended arguments for the method
@@ -152,6 +146,7 @@ the main method itself.
 As a simple example, let's define a method `set` that just sets a key, value pair.
 If we want to namespace the key, we can do so by adding a `pre` middleware hook
 that runs before `set`, alters the arguments by namespacing the `key` argument, and passes them onto `set`:
+
     Document.hook('set', function (key, val) {
       this[key] = val;
     });
@@ -168,6 +163,7 @@ As you can see above, we pass arguments via `next`.
 If you are not mutating the arguments, then you can pass zero arguments
 to `next`, and the next middleware function will still have access
 to the arguments.
+
     Document.hook('set', function (key, val) {
       this[key] = val;
     });
@@ -181,6 +177,7 @@ to the arguments.
     });
 
 Finally, you can add arguments that downstream middleware can also see:
+
     // Note that in the definition of `set`, there is no 3rd argument, options
     Document.hook('set', function (key, val) {
       // But...
@@ -287,6 +284,7 @@ So what's happening is that:
 ## Removing Pres
 
 You can remove a particular pre associated with a hook:
+
     Document.pre('set', someFn);
     Document.removePre('set', someFn);
 
