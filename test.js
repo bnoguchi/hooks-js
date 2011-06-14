@@ -208,7 +208,7 @@ module.exports = {
     counter.should.equal(1);
     should.deepEqual(undefined, a.value);
   },
-  'should fall back last to the hook method as the error handler': function () {
+  'should fall back last to throwing the error': function () {
     var A = function () {};
     _.extend(A, hooks);
     var counter = 0;
@@ -220,26 +220,16 @@ module.exports = {
       next(new Error());
     });
     var a = new A();
-    a.save();
-    counter.should.equal(1);
-    assert.equal(typeof a.value, 'undefined');
-  },
-  'should have access to the object scope when falling back last to the hook method as the error handler': function () {
-    var A = function () {
-      this.counter = 0;
-    };
-    _.extend(A, hooks);
-    A.hook('save', function (err) {
-      if (err instanceof Error) return this.counter++;
-      this.value = 1;
-    });
-    A.pre('save', true, function (next, done) {
-      next(new Error());
-    });
-    var a = new A();
-    a.save();
-    a.counter.should.equal(1);
-    assert.equal(typeof a.value, 'undefined');
+    var didCatch = false;
+    try {
+      a.save();
+    } catch (e) {
+      didCatch = true;
+      e.should.be.an.instanceof(Error);
+      counter.should.equal(0);
+      assert.equal(typeof a.value, 'undefined');
+    }
+    didCatch.should.be.true;
   },
   "should proceed without mutating arguments if `next(null)` is called in a serial pre, and the last argument of the target method is a callback with node-like signature function (err, obj) {...} or function (err) {...}": function () {
     var A = function () {};

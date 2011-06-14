@@ -91,7 +91,6 @@ module.exports = {
         if (errorCb) return errorCb(err);
         if ('function' == typeof lastArg)
           return lastArg(err);
-        if (fn.length > 0) return fn.call(self, err);
         throw err;
       }
       return _next.apply(this, arguments);
