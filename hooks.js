@@ -101,15 +101,16 @@ module.exports = {
     return this;
   },
 
-  pre: function (name, isAsync, fn) {
-    if (arguments.length === 2) {
+  pre: function (name, isAsync, fn, errorCb) {
+    if ('boolean' !== typeof arguments[1]) {
+      errorCb = fn;
       fn = isAsync;
       isAsync = false;
     }
     var proto = this.prototype || this
       , pres = proto._pres = proto._pres || {};
 
-    this._lazySetupHooks(proto, name);
+    this._lazySetupHooks(proto, name, errorCb);
 
     if (fn.isAsync = isAsync) {
       proto[name].numAsyncPres++;
@@ -144,9 +145,9 @@ module.exports = {
     }
     return this;
   },
-  _lazySetupHooks: function (proto, methodName) {
+  _lazySetupHooks: function (proto, methodName, errorCb) {
     if ('undefined' === typeof proto[methodName].numAsyncPres) {
-      this.hook(methodName, proto[methodName]);
+      this.hook(methodName, proto[methodName], errorCb);
     }
   }
 };

@@ -597,6 +597,24 @@ module.exports = {
     a.preValue.should.equal(2);
   },
 
+  '#pre lazily making a method hookable should be able to provide an errorHandler as the last argument': function () {
+    var A = function () {};
+    var preValue = "";
+    _.extend(A, hooks);
+    A.prototype.save = function () {
+      this.value = 1;
+    };
+    A.pre('save', function (next) {
+      next(new Error);
+    }, function (err) {
+      preValue = 'ERROR';
+    });
+    var a = new A();
+    a.save();
+    should.strictEqual(undefined, a.value);
+    preValue.should.equal('ERROR');
+  },
+
   '#post should lazily make a method hookable': function () {
     var A = function () {};
     _.extend(A, hooks);
