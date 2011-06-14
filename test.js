@@ -134,7 +134,7 @@ module.exports = {
     _.extend(A, hooks);
     A.hook('save', function () {
       this.value = 1;
-    });
+    }, function (err) {});
     A.pre('save', function (next) {
       this.v1 = 1;
       next();
@@ -176,7 +176,7 @@ module.exports = {
     _.extend(A, hooks);
     A.hook('save', function () {
       this.value = 1;
-    });
+    }, function (err) {});
     A.post('save', function (next) {
       this.value = 2;
       next();
@@ -213,7 +213,7 @@ module.exports = {
     _.extend(A, hooks);
     var counter = 0;
     A.hook('save', function (err) {
-      if (err instanceof Error) counter++;
+      if (err instanceof Error) return counter++;
       this.value = 1;
     });
     A.pre('save', true, function (next, done) {
@@ -222,6 +222,23 @@ module.exports = {
     var a = new A();
     a.save();
     counter.should.equal(1);
+    assert.equal(typeof a.value, 'undefined');
+  },
+  'should have access to the object scope when falling back last to the hook method as the error handler': function () {
+    var A = function () {
+      this.counter = 0;
+    };
+    _.extend(A, hooks);
+    A.hook('save', function (err) {
+      if (err instanceof Error) return this.counter++;
+      this.value = 1;
+    });
+    A.pre('save', true, function (next, done) {
+      next(new Error());
+    });
+    var a = new A();
+    a.save();
+    a.counter.should.equal(1);
     assert.equal(typeof a.value, 'undefined');
   },
   "should proceed without mutating arguments if `next(null)` is called in a serial pre, and the last argument of the target method is a callback with node-like signature function (err, obj) {...} or function (err) {...}": function () {
@@ -261,7 +278,7 @@ module.exports = {
     _.extend(A, hooks);
     A.hook('save', function () {
       this.value = 2;
-    });
+    }, function (err) {});
     A.pre('save', function (next) {
       this.value = 1;
       next(new Error());
