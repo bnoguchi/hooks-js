@@ -525,7 +525,7 @@ module.exports = {
     }, 1000);
   },
 
-  'calling the same next multiple times should have the effect of only calling it once': function () {
+  'calling the same next multiple times should have the effect of only calling it once': function (beforeExit) {
     var A = function () {
       this.acked = false;
     };
@@ -535,17 +535,21 @@ module.exports = {
       this.acked = true;
     });
     A.pre('ack', function (next) {
-      next();
-      next();
+      // force a throw to re-exec next()
+      try {
+        next(new Error('bam'));
+      } catch (err) {
+        next();
+      }
     });
     A.pre('ack', function (next) {
-      // Notice that next() is not invoked here
+      next();
     });
     var a = new A();
     a.ack();
-    setTimeout( function () {
+    beforeExit( function () {
       a.acked.should.be.false;
-    }, 1000);
+    });
   },
 
   'asynchronous middleware should be able to pass an error via `done`, stopping the middleware chain': function () {
