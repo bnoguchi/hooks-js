@@ -155,7 +155,7 @@ module.exports = {
 function once (fn, scope) {
   return function fnWrapper () {
     if (fnWrapper.hookCalled) return;
-    fn.apply(scope, arguments);
     fnWrapper.hookCalled = true;
+    fn.apply(scope, arguments);
   };
 }
