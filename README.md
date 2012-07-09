@@ -16,7 +16,7 @@ and you might want to dispatch a job to a background job queue after `save`.
 One might have an urge to hard code this all into `save`, but that turns out to
 couple all these pieces of functionality (validation, save, and job creation) more
 tightly than is necessary. For example, what if someone does not want to do background
-job creation after the logical save? 
+job creation after the logical save?
 
 It is nicer to tack on functionality using what we call `pre` and `post` hooks. These
 are functions that you define and that you direct to execute before or after particular
@@ -25,30 +25,33 @@ methods.
 ## Example
 We can use `hooks` to add validation and background jobs in the following way:
 
-    var hooks = require('hooks')
-      , Document = require('./path/to/some/document/constructor');
+```javascript
+var hooks = require('hooks')
+  , Document = require('./path/to/some/document/constructor');
 
-    // Add hooks' methods: `hook`, `pre`, and `post`    
-    for (var k in hooks) {
-      Document[k] = hooks[k];
-    }
+// Add hooks' methods: `hook`, `pre`, and `post`
+for (var k in hooks) {
+  Document[k] = hooks[k];
+}
 
-    // Define a new method that is able to invoke pre and post middleware
-    Document.hook('save', Document.prototype.save);
+// Define a new method that is able to invoke pre and post middleware
+Document.hook('save', Document.prototype.save);
 
-    // Define a middleware function to be invoked before 'save'
-    Document.pre('save', function validate (next) {
-      // The `this` context inside of `pre` and `post` functions
-      // is the Document instance
-      if (this.isValid()) next();      // next() passes control to the next middleware
-                                       // or to the target method itself
-      else next(new Error("Invalid")); // next(error) invokes an error callback
-    });
+// Define a middleware function to be invoked before 'save'
+Document.pre('save', function validate (next) {
+  // The `this` context inside of `pre` and `post` functions
+  // is the Document instance
+  if (this.isValid()) next();      // next() passes control to the next middleware
+                                   // or to the target method itself
+  else next(new Error("Invalid")); // next(error) invokes an error callback
+});
 
-    // Define a middleware function to be invoked after 'save'
-    Document.post('save', function createJob () {
-      this.sendToBackgroundQueue();
-    });
+// Define a middleware function to be invoked after 'save'
+Document.post('save', function createJob (next) {
+  this.sendToBackgroundQueue();
+  next();
+});
+```
 
 If you already have defined `Document.prototype` methods for which you want pres and posts,
 then you do not need to explicitly invoke `Document.hook(...)`. Invoking `Document.pre(methodName, fn)`
@@ -59,7 +62,7 @@ so that it plays well with `hooks`. An equivalent way to implement the previous 
 var hooks = require('hooks')
   , Document = require('./path/to/some/document/constructor');
 
-// Add hooks' methods: `hook`, `pre`, and `post`    
+// Add hooks' methods: `hook`, `pre`, and `post`
 for (var k in hooks) {
   Document[k] = hooks[k];
 }
@@ -78,8 +81,9 @@ Document.pre('save', function validate (next) {
 });
 
 // Define a middleware function to be invoked after 'save'
-Document.post('save', function createJob () {
+Document.post('save', function createJob (next) {
   this.sendToBackgroundQueue();
+  next();
 });
 ```
 
@@ -91,28 +95,44 @@ We structure pres and posts as middleware to give you maximum flexibility:
 3. Any functions in this middleware chain can choose to halt the chain's execution by `next`ing an Error from that middleware function. If this occurs, then none of the other middleware in the chain will execute, and the main method (e.g., `save`) will not execute. This is nice, for example, when we don't want a document to save if it is invalid.
 
 ## Defining multiple pres (or posts)
-`pre` is chainable, so you can define multiple pres via:
-    Document.pre('save', function (next, halt) {
-      console.log("hello");
-    }).pre('save', function (next, halt) {
-      console.log("world");
-    });
+`pre` and `post` are chainable, so you can define multiple via:
+```javascript
+Document.pre('save', function (next) {
+  console.log("hello");
+  next();
+}).pre('save', function (next) {
+  console.log("world");
+  next();
+});
+
+Document.post('save', function (next) {
+  console.log("hello");
+  next();
+}).post('save', function (next) {
+  console.log("world");
+  next();
+});
+```
 
 As soon as one pre finishes executing, the next one will be invoked, and so on.
 
 ## Error Handling
 You can define a default error handler by passing a 2nd function as the 3rd argument to `hook`:
-    Document.hook('set', function (path, val) {
-      this[path] = val;
-    }, function (err) {
-      // Handler the error here
-      console.error(err);
-    });
+```javascript
+Document.hook('set', function (path, val) {
+  this[path] = val;
+}, function (err) {
+  // Handler the error here
+  console.error(err);
+});
+```
 
 Then, we can pass errors to this handler from a pre or post middleware function:
-    Document.pre('set', function (next, path, val) {
-      next(new Error());
-    });
+```javascript
+Document.pre('set', function (next, path, val) {
+  next(new Error());
+});
+```
 
 If you do not set up a default handler, then `hooks` makes the default handler that just throws the `Error`.
 
@@ -121,7 +141,7 @@ The default error handler can be over-rided on a per method invocation basis.
 If the main method that you are surrounding with pre and post middleware expects its last argument to be a function
 with callback signature `function (error, ...)`, then that callback becomes the error handler, over-riding the default
 error handler you may have set up.
-   
+
 ```javascript
 Document.hook('save', function (callback) {
   // Save logic goes here
@@ -132,7 +152,7 @@ var doc = new Document();
 doc.save( function (err, saved) {
   // We can pass err via `next` in any of our pre or post middleware functions
   if (err) console.error(err);
-  
+
   // Rest of callback logic follows ...
 });
 ```
@@ -147,16 +167,18 @@ As a simple example, let's define a method `set` that just sets a key, value pai
 If we want to namespace the key, we can do so by adding a `pre` middleware hook
 that runs before `set`, alters the arguments by namespacing the `key` argument, and passes them onto `set`:
 
-    Document.hook('set', function (key, val) {
-      this[key] = val;
-    });
-    Document.pre('set', function (next, key, val) {
-      next('namespace-' + key, val);
-    });
-    var doc = new Document();
-    doc.set('hello', 'world');
-    console.log(doc.hello); // undefined
-    console.log(doc['namespace-hello']); // 'world'
+```javascript
+Document.hook('set', function (key, val) {
+  this[key] = val;
+});
+Document.pre('set', function (next, key, val) {
+  next('namespace-' + key, val);
+});
+var doc = new Document();
+doc.set('hello', 'world');
+console.log(doc.hello); // undefined
+console.log(doc['namespace-hello']); // 'world'
+```
 
 As you can see above, we pass arguments via `next`.
 
@@ -164,47 +186,86 @@ If you are not mutating the arguments, then you can pass zero arguments
 to `next`, and the next middleware function will still have access
 to the arguments.
 
-    Document.hook('set', function (key, val) {
-      this[key] = val;
-    });
-    Document.pre('set', function (next, key, val) {
-      // I have access to key and val here
-      next(); // We don't need to pass anything to next
-    });
-    Document.pre('set', function (next, key, val) {
-      // And I still have access to the original key and val here
-      next();
-    });
+```javascript
+Document.hook('set', function (key, val) {
+  this[key] = val;
+});
+Document.pre('set', function (next, key, val) {
+  // I have access to key and val here
+  next(); // We don't need to pass anything to next
+});
+Document.pre('set', function (next, key, val) {
+  // And I still have access to the original key and val here
+  next();
+});
+```
 
 Finally, you can add arguments that downstream middleware can also see:
 
-    // Note that in the definition of `set`, there is no 3rd argument, options
-    Document.hook('set', function (key, val) {
-      // But...
-      var options = arguments[2]; // ...I have access to an options argument
-                                  // because of pre function pre2 (defined below)
-      console.log(options); // '{debug: true}'
-      this[key] = val;
-    });
-    Document.pre('set', function pre1 (next, key, val) {
-      // I only have access to key and val arguments
-      console.log(arguments.length); // 3
-      next(key, val, {debug: true});
-    });
-    Document.pre('set', function pre2 (next, key, val, options) {
-      console.log(arguments.length); // 4
-      console.log(options); // '{ debug: true}'
-      next();
-    });
-    Document.pre('set', function pre3 (next, key, val, options) {
-      // I still have access to key, val, AND the options argument introduced via the preceding middleware
-      console.log(arguments.length); // 4
-      console.log(options); // '{ debug: true}'
-      next();
-    });
-    
-    var doc = new Document()
-    doc.set('hey', 'there');
+```javascript
+// Note that in the definition of `set`, there is no 3rd argument, options
+Document.hook('set', function (key, val) {
+  // But...
+  var options = arguments[2]; // ...I have access to an options argument
+                              // because of pre function pre2 (defined below)
+  console.log(options); // '{debug: true}'
+  this[key] = val;
+});
+Document.pre('set', function pre1 (next, key, val) {
+  // I only have access to key and val arguments
+  console.log(arguments.length); // 3
+  next(key, val, {debug: true});
+});
+Document.pre('set', function pre2 (next, key, val, options) {
+  console.log(arguments.length); // 4
+  console.log(options); // '{ debug: true}'
+  next();
+});
+Document.pre('set', function pre3 (next, key, val, options) {
+  // I still have access to key, val, AND the options argument introduced via the preceding middleware
+  console.log(arguments.length); // 4
+  console.log(options); // '{ debug: true}'
+  next();
+});
+
+var doc = new Document()
+doc.set('hey', 'there');
+```
+
+## Post middleware
+
+Post middleware intercepts the callback originally sent to the asynchronous function you have hooked to.
+
+This means that the following chain of execution will occur in a typical `save` operation:
+
+(1) doc.save -> (2) pre --(next)--> (3) save calls back -> (4) post --(next)--> (5) targetFn
+
+Illustrated below:
+
+```
+Document.pre('save', function (next) {
+  this.key = "value";
+  next();
+});
+// Post handler occurs before `set` calls back. This is useful if we need to grab something
+// async before `set` finishes.
+Document.post('set', function (next) {
+  var me = this;
+  getSomethingAsync(function(value){ // let's assume it returns "Hello Async"
+    me.key2 = value;
+    next();
+  });
+});
+
+var doc = new Document();
+doc.save(function(err){
+  console.log(this.key);  // "value" - this value was saved
+  console.log(this.key2); // "Hello Async" - this value was *not* saved
+}
+
+```
+
+Post middleware must call `next()` or execution will stop.
 
 ## Parallel `pre` middleware
 
@@ -231,41 +292,43 @@ definition method.
 
 We illustrate via the parallel validation example mentioned above:
 
-    Document.hook('save', function targetFn (callback) {
-      // Save logic goes here
-      // ...
-      // This only gets run once the two `done`s are both invoked via preOne and preTwo.
-    });
+```javascript
+Document.hook('save', function targetFn (callback) {
+  // Save logic goes here
+  // ...
+  // This only gets run once the two `done`s are both invoked via preOne and preTwo.
+});
 
-                         // true marks this as parallel middleware
-    Document.pre('save', true, function preOne (next, doneOne, callback) {
-      remoteServiceOne.validate(this.serialize(), function (err, isValid) {
-        // The code in here will probably be run after the `next` below this block
-        // and could possibly be run after the console.log("Hola") in `preTwo
-        if (err) return doneOne(err);
-        if (isValid) doneOne();
-      });
-      next(); // Pass control to the next middleware
-    });
-    
-    // We will suppose that we need 2 different remote services to validate our document
-    Document.pre('save', true, function preTwo (next, doneTwo, callback) {
-      remoteServiceTwo.validate(this.serialize(), function (err, isValid) {
-        if (err) return doneTwo(err);
-        if (isValid) doneTwo();
-      });
-      next();
-    });
-    
-    // While preOne and preTwo are parallel, preThree is a serial pre middleware
-    Document.pre('save', function preThree (next, callback) {
-      next();
-    });
-    
-    var doc = new Document();
-    doc.save( function (err, doc) {
-      // Do stuff with the saved doc here...
-    });
+                     // true marks this as parallel middleware
+Document.pre('save', true, function preOne (next, doneOne, callback) {
+  remoteServiceOne.validate(this.serialize(), function (err, isValid) {
+    // The code in here will probably be run after the `next` below this block
+    // and could possibly be run after the console.log("Hola") in `preTwo
+    if (err) return doneOne(err);
+    if (isValid) doneOne();
+  });
+  next(); // Pass control to the next middleware
+});
+
+// We will suppose that we need 2 different remote services to validate our document
+Document.pre('save', true, function preTwo (next, doneTwo, callback) {
+  remoteServiceTwo.validate(this.serialize(), function (err, isValid) {
+    if (err) return doneTwo(err);
+    if (isValid) doneTwo();
+  });
+  next();
+});
+
+// While preOne and preTwo are parallel, preThree is a serial pre middleware
+Document.pre('save', function preThree (next, callback) {
+  next();
+});
+
+var doc = new Document();
+doc.save( function (err, doc) {
+  // Do stuff with the saved doc here...
+});
+```
 
 In the above example, flow control may happen in the following way:
 
