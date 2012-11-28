@@ -714,5 +714,60 @@ module.exports = {
       assert.equal(a.value, 7);
       assert.equal(a.value2, 3);
     });
+  },
+
+  'should pass along callback error from hooked function': function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.hook('get', function (key, callback) {
+      callback(new Error('Here is an error'), 123);
+    });
+    var a = new A();
+    a.get(2, function(err, val){
+      assert(err instanceof Error);
+      assert.equal(val, 123);
+    });
+  },
+
+  'should pass along callback arguments from hooked function': function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.hook('get', function (key, callback) {      
+      callback(null, 123);
+    });    
+    var a = new A();
+    a.get(2, function(err, val){
+      assert.equal(val, 123);
+    });
+  },
+
+  'callback results from hooked functions should be available in post functions': function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.hook('get', function (key, callback) {      
+      callback(null, 123);
+    });
+    A.post('get', function(next, key, callback, err, val) {
+      assert.equal(val, 123);
+    });
+    var a = new A();
+    a.get(2, function(err, val){
+      assert.equal(val, 123);
+    });
+  },
+
+  'post should change callback value': function() {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.hook('get', function (key, callback) {      
+      callback(null, 123);
+    });
+    A.post('get', function(next, key, callback, err, val) {
+      next(key, callback, err, 456);
+    });
+    var a = new A();
+    a.get(2, function(err, val){
+      assert.equal(val, 456);
+    });
   }
 };

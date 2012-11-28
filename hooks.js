@@ -54,8 +54,8 @@ module.exports = {
           }
         , _done = function () {
             var args_ = Array.prototype.slice.call(arguments)
-              , ret, total_, current_, next_, done_, postArgs;
-
+              , ret, total_, current_, next_, done_, postArgs
+              , callbackArgs; // hold callback arguments from hooked function
             if (_current === _total) {
               
               next_ = function () {
@@ -73,15 +73,28 @@ module.exports = {
                   postArgs = [once(next_)].concat(hookArgs);
                   return currPost.apply(self, postArgs);
                 } else if (typeof lastArg === 'function'){
+                  // Get changed callbackArgs from hookArgs
+                  callbackArgs = hookArgs.slice(hookArgs.length - callbackArgs.length);
                   // All post handlers are done, call original callback function
-                  return lastArg.apply(self);
+                  return lastArg.apply(self, callbackArgs);
                 }
               };
 
               // We are assuming that if the last argument provided to the wrapped function is a function, it was expecting
               // a callback.  We trap that callback and wait to call it until all post handlers have finished.
               if(typeof lastArg === 'function'){
-                args_[args_.length - 1] = once(next_);
+                args_[args_.length - 1] = function fnCall() {
+                  // emulate once()
+                  if (fnCall.hookCalled) return;                  
+                  fnCall.hookCalled = true;
+
+                  // capture hooked function callback arguments
+                  callbackArgs = Array.prototype.slice.call(arguments);
+                  // append callbackArgs to hookArgs for use in post processing
+                  hookArgs = hookArgs.concat(callbackArgs);
+
+                  next_();
+                };
               }
 
               total_ = posts.length;
