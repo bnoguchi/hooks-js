@@ -54,7 +54,7 @@ module.exports = {
           }
         , _done = function () {
             var args_ = Array.prototype.slice.call(arguments)
-              , ret, total_, current_, next_, done_, postArgs;
+              , ret, total_, current_, next_, done_, postArgs, callbackArgs;
 
             if (_current === _total) {
               
@@ -74,14 +74,17 @@ module.exports = {
                   return currPost.apply(self, postArgs);
                 } else if (typeof lastArg === 'function'){
                   // All post handlers are done, call original callback function
-                  return lastArg.apply(self);
+                  return lastArg.apply(self, callbackArgs);
                 }
               };
 
               // We are assuming that if the last argument provided to the wrapped function is a function, it was expecting
               // a callback.  We trap that callback and wait to call it until all post handlers have finished.
               if(typeof lastArg === 'function'){
-                args_[args_.length - 1] = once(next_);
+                args_[args_.length - 1] = once(function () {
+                    callbackArgs = Array.prototype.slice.call(arguments)
+                    next_(callbackArgs);
+                });
               }
 
               total_ = posts.length;
