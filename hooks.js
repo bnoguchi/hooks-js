@@ -22,7 +22,7 @@ module.exports = {
 
     proto[name] = function () {
       var self = this
-        , hookArgs // arguments eventually passed to the hook - are mutable
+        , hookArgs = []// arguments eventually passed to the hook - are mutable
         , lastArg = arguments[arguments.length-1]
         , pres = this._pres[name]
         , posts = this._posts[name]
@@ -38,6 +38,7 @@ module.exports = {
               , preArgs;
             if (_args.length && !(arguments[0] == null && typeof lastArg === 'function'))
               hookArgs = _args;
+
             if (++_current < _total) {
               currPre = pres[_current]
               if (currPre.isAsync && currPre.length < 2)
