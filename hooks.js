@@ -169,6 +169,6 @@ function once (fn, scope) {
   return function fnWrapper () {
     if (fnWrapper.hookCalled) return;
     fnWrapper.hookCalled = true;
-    fn.apply(scope, arguments);
+    return fn.apply(scope, arguments);
   };
 }
