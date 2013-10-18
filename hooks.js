@@ -74,7 +74,7 @@ module.exports = {
                   return currPost.apply(self, postArgs);
                 } else if (typeof lastArg === 'function'){
                   // All post handlers are done, call original callback function
-                  return lastArg.apply(self);
+                  return lastArg.apply(self, arguments);
                 }
               };
 
