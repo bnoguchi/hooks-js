@@ -627,6 +627,51 @@ module.exports = {
     should.strictEqual(undefined, a.preValueTwo);
   },
 
+  'should be able to remove a particular post': function () {
+    var A = function () {}
+      , postTwo;
+    _.extend(A, hooks);
+    A.hook('save', function () {
+      this.value = 1;
+    });
+    A.post('save', function (next) {
+      this.postValueOne = 2;
+      next();
+    });
+    A.post('save', postTwo = function (next) {
+      this.postValueTwo = 4;
+      next();
+    });
+    A.removePost('save', postTwo);
+    var a = new A();
+    a.save();
+    a.value.should.equal(1);
+    a.postValueOne.should.equal(2);
+    should.strictEqual(undefined, a.postValueTwo);
+  },
+
+  'should be able to remove all posts associated with a hook': function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.hook('save', function () {
+      this.value = 1;
+    });
+    A.post('save', function (next) {
+      this.postValueOne = 2;
+      next();
+    });
+    A.post('save', function (next) {
+      this.postValueTwo = 4;
+      next();
+    });
+    A.removePost('save');
+    var a = new A();
+    a.save();
+    a.value.should.equal(1);
+    should.strictEqual(undefined, a.postValueOne);
+    should.strictEqual(undefined, a.postValueTwo);
+  },
+
   '#pre should lazily make a method hookable': function () {
     var A = function () {};
     _.extend(A, hooks);

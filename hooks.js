@@ -144,6 +144,20 @@ module.exports = {
     (posts[name] = posts[name] || []).push(fn);
     return this;
   },
+  removePost: function (name, fnToRemove) {
+    var proto = this.prototype || this
+      , posts = proto._posts || (proto._posts || {});
+    if (!posts[name]) return this;
+    if (arguments.length === 1) {
+      // Remove all post callbacks for hook `name`
+      posts[name].length = 0;
+    } else {
+      posts[name] = posts[name].filter( function (currFn) {
+        return currFn !== fnToRemove;
+      });
+    }
+    return this;
+  },
   removePre: function (name, fnToRemove) {
     var proto = this.prototype || this
       , pres = proto._pres || (proto._pres || {});
