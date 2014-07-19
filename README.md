@@ -1,3 +1,5 @@
+## __This is a re-write of the original with different behaviour. Use with caution!__
+
 hooks
 ============
 
