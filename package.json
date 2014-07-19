@@ -1,7 +1,10 @@
 {
   "name": "hooks",
-  "description": "Adds pre and post hook functionality to your JavaScript methods.",
-  "version": "0.3.2",
+  "description": "
+    Adds pre and post hook functionality to your JavaScript methods.
+    This is a re-write of the original with different behaviour!
+  ",
+  "version": "0.4.0",
   "keywords": [
     "node",
     "hooks",
@@ -22,7 +25,9 @@
   "scripts": {
     "test": "make test"
   },
-  "dependencies": {},
+  "dependencies": {
+    "underscore": ">=1.1.4"
+  },
   "devDependencies": {
     "expresso": ">=0.7.6",
     "should": ">=0.2.1",
