@@ -22,7 +22,9 @@
   "scripts": {
     "test": "make test"
   },
-  "dependencies": {},
+  "dependencies": {
+    "underscore": ">=1.1.4"
+  },
   "devDependencies": {
     "expresso": ">=0.7.6",
     "should": ">=0.2.1",

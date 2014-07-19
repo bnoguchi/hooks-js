@@ -1,188 +1,231 @@
-// TODO Add in pre and post skipping options
-module.exports = {
-  /**
-   *  Declares a new hook to which you can add pres and posts
-   *  @param {String} name of the function
-   *  @param {Function} the method
-   *  @param {Function} the error handler callback
-   */
-  hook: function (name, fn, errorCb) {
-    if (arguments.length === 1 && typeof name === 'object') {
-      for (var k in name) { // `name` is a hash of hookName->hookFn
-        this.hook(k, name[k]);
-      }
-      return;
-    }
+var _ = require('underscore');
 
-    var proto = this.prototype || this
-      , pres = proto._pres = proto._pres || {}
-      , posts = proto._posts = proto._posts || {};
-    pres[name] = pres[name] || [];
-    posts[name] = posts[name] || [];
+(function (){
+  // TODO: Add in pre and post skipping options
+  module.exports = {
+    /**
+     *  Declares a new hook to which you can add pres and posts
+     *  @param {String} name of the function
+     *  @param {Function} originalFunction The function being wrappped in middleware
+     *  @param {Function} errorCb The error handler callback
+     */
+    hook: function (name, originalFunction, errorCb) {
+      var proto = this.prototype || this,
+          pres = proto._pres = proto._pres || {},
+          posts = proto._posts = proto._posts || {};
 
-    proto[name] = function () {
-      var self = this
-        , hookArgs // arguments eventually passed to the hook - are mutable
-        , lastArg = arguments[arguments.length-1]
-        , pres = this._pres[name]
-        , posts = this._posts[name]
-        , _total = pres.length
-        , _current = -1
-        , _asyncsLeft = proto[name].numAsyncPres
-        , _next = function () {
-            if (arguments[0] instanceof Error) {
-              return handleError(arguments[0]);
-            }
-            var _args = Array.prototype.slice.call(arguments)
-              , currPre
-              , preArgs;
-            if (_args.length && !(arguments[0] == null && typeof lastArg === 'function'))
-              hookArgs = _args;
-            if (++_current < _total) {
-              currPre = pres[_current]
-              if (currPre.isAsync && currPre.length < 2)
-                throw new Error("Your pre must have next and done arguments -- e.g., function (next, done, ...)");
-              if (currPre.length < 1)
-                throw new Error("Your pre must have a next argument -- e.g., function (next, ...)");
-              preArgs = (currPre.isAsync
-                          ? [once(_next), once(_asyncsDone)]
-                          : [once(_next)]).concat(hookArgs);
-              return currPre.apply(self, preArgs);
-            } else if (!proto[name].numAsyncPres) {
-              return _done.apply(self, hookArgs);
-            }
-          }
-        , _done = function () {
-            var args_ = Array.prototype.slice.call(arguments)
-              , ret, total_, current_, next_, done_, postArgs;
+      pres[name] = pres[name] || [];
+      posts[name] = posts[name] || [];
 
-            if (_current === _total) {
-              
-              next_ = function () {
-                if (arguments[0] instanceof Error) {
-                  return handleError(arguments[0]);
-                }
-                var args_ = Array.prototype.slice.call(arguments, 1)
-                  , currPost
-                  , postArgs;
-                if (args_.length) hookArgs = args_;
-                if (++current_ < total_) {
-                  currPost = posts[current_]
-                  if (currPost.length < 1)
-                    throw new Error("Your post must have a next argument -- e.g., function (next, ...)");
-                  postArgs = [once(next_)].concat(hookArgs);
-                  return currPost.apply(self, postArgs);
-                } else if (typeof lastArg === 'function'){
-                  // All post handlers are done, call original callback function
-                  return lastArg.apply(self, arguments);
-                }
-              };
+      proto[name] = proto[name] || function () {
+        console.info(this.getGuid()+' calls '+name);
 
-              // We are assuming that if the last argument provided to the wrapped function is a function, it was expecting
-              // a callback.  We trap that callback and wait to call it until all post handlers have finished.
-              if(typeof lastArg === 'function'){
-                args_[args_.length - 1] = once(next_);
-              }
+        // This part here is weird for two reasons:
+        // 1. We can't simply declare members like this.LastArgument, because
+        //    then all hooks would share the same LastArgument member. This is to say
+        //    that all functions being hooked would share the same members on the object.
+        // 2. We can't simply declare members like this[name].lastArgument, because
+        //    then all instances of the class share the same instance of the function this[name].
+        //    So, if ever two instances were both using the function at the same time, their
+        //    instance variables would collide.
+        // So, all instances and all instance methods being hooked get their own namespace, such as
+        // this[name+'InstanceVariableName']
+        this[name+'LastArgument'] = arguments[arguments.length-1]; //Callback to original function
+        this[name+'LastArgument'].guid = this.getGuid();
+        this[name+'HookArgs'] = undefined; // arguments eventually passed to the hooks - are mutable
+        this[name+'CurrentPreHookCounter'] = -1;
+        this[name+'CurrentPostHookCounter'] = -1;
 
-              total_ = posts.length;
-              current_ = -1;
-              ret = fn.apply(self, args_); // Execute wrapped function, post handlers come afterward
-
-              if (total_ && typeof lastArg !== 'function') return next_();  // no callback provided, execute next_() manually
-              return ret;
-            }
-          };
-      if (_asyncsLeft) {
-        function _asyncsDone (err) {
-          if (err && err instanceof Error) {
-            return handleError(err);
-          }
-          --_asyncsLeft || _done.apply(self, hookArgs);
+        return preNext.apply(this, arguments);
+      };
+      proto.totalPreHooks = proto.totalPreHooks || function (name){
+        return this.getPreHooks(name).length;
+      };
+      proto.totalPostHooks = proto.totalPostHooks || function (name){
+        return this.getPostHooks(name).length;
+      };
+      proto.getPreHooks = proto.getPreHooks || function (name){
+        return this._pres[name];
+      };
+      proto.getPostHooks = proto.getPostHooks || function (name){
+        return this._posts[name];
+      };
+      proto.thereArePreHooks = proto.thereArePreHooks || function (name){
+        return this._pres[name].length > 0;
+      };
+      proto.thereArePostHooks = proto.thereArePostHooks || function (name){
+        return this._posts[name].length > 0;
+      };
+      var postNext = function () {
+        console.info(this.getGuid()+' calls '+name+' postNext');
+        if (arguments[0] instanceof Error) {
+          return handleError.call(this, arguments[0]);
         }
+        var self = this,
+            args_ = Array.prototype.slice.call(arguments, 1), //get all args except the first one since fist arg is left for error
+            currentPostFunction,
+            postArgs;
+
+        if (args_.length > 0){
+          self[name+'HookArgs'] = args_;
+        }
+
+        ++self[name+'currentPostHookCounter']; // counter starts at -1
+        if (self[name+'currentPostHookCounter'] < self.totalPostHooks(name)) {
+          currentPostFunction = self.getPostHooks(name)[self[name+'currentPostHookCounter']];
+
+          var currentPostFunctionArgumentsCount = currentPreFunction.length;
+          if (currentPostFunctionArgumentsCount < 1){
+            //The arguments of the hook function doesn't have sufficient arguments
+            //  Any pre or post hook needs at least 1 argument for the function self must be
+            //  called next.
+            throw new Error("Your post must have a next argument -- e.g., function (next, ...)");
+          }
+
+          postArgs = [postNext].concat(self[name+'HookArgs']);
+          console.info(this.getGuid()+' calls '+name+' currentPostFunction');
+          return currentPostFunction.apply(self, postArgs);
+        } else if (_.isFunction(self[name+'LastArgument'])){
+          // All post handlers are done, call original callback function
+          console.info(this.getGuid()+' calls '+name+' lastArgument');
+          console.assert(self[name+'LastArgument'].guid === self.getGuid(), self[name+'LastArgument'].guid+' does not equal '+self.getGuid());
+          return self[name+'LastArgument'].apply(self, arguments);
+        }
+      };
+      var preDone = function () {
+        console.info(this.getGuid()+' calls '+name+' preDone');
+        var self = this,
+            args_ = Array.prototype.slice.call(arguments); //Should stil be the arguments to the original function
+
+        // // We are assuming self if the last argument provided to the original
+        // // function is a function, it was expecting a callback. 
+        // // We trap self callback and wait to call it until all post handlers have finished.
+        // if(_.isFunction(self[name+'LastArgument'])){
+        //   // replace lastArgument with postNext in the args array
+        //   // Above, we have preserved the lastArgument.
+        //   args_[args_.length - 1] = function (){
+        //     console.info(self.getGuid()+' preDone calls '+name+' postNext');
+        //     return postNext.apply(self, arguments); //post hooks get no arguments
+        //   };
+        // }
+
+        if (!self.thereArePostHooks(name) && _.isFunction(self[name+'LastArgument'])){
+          console.info(this.getGuid()+' calls '+name+' originalFunction with callback');
+          originalFunction.call(self, function (){
+            console.info(self.getGuid()+' preDone calls '+name+' postNext');
+            postNext.apply(self, arguments);
+          });
+        }else{ //originalFunction does not take a callback
+          // no callback provided --> execute postNext() manually
+          console.info(this.getGuid()+' calls '+name+' originalFunction without callback');
+          originalFunction.apply(self, args_);
+          postNext.apply(self, arguments);
+        }
+      };
+      var handleError = function (err) {
+        console.info(this.getGuid()+' calls '+name+' handleError');
+        var self = this;
+        if (errorCb){
+          errorCb.apply(self, [err]);
+
+          // If the original function took a callback as the last argument
+          if(_.isFunction(self[name+'LastArgument'])){
+            console.info(this.getGuid()+' calls '+name+' ERROR lastArgument');
+            self[name+'LastArgument'](err);
+          }
+        }else if (_.isFunction(self[name+'LastArgument'])){
+          console.info(this.getGuid()+' calls '+name+' ERROR lastArgument');
+          return self[name+'LastArgument'](err);
+        }else {
+          throw err;
+        }
+      };
+      var preNext = function () {
+        console.info(this.getGuid()+' calls '+name+' preNext');
+        if (arguments[0] instanceof Error) {
+          return handleError.call(this, arguments[0]);
+        }
+        var self = this,
+            originalFunctionArguments = Array.prototype.slice.call(arguments),
+            currentPreFunction,
+            preArgs;
+
+        // I'm not sure what the point of this is...
+        if (originalFunctionArguments.length > 0 && arguments[0] !== null && !_.isFunction(self[name+'LastArgument'])){
+          self[name+'HookArgs'] = originalFunctionArguments;
+        }
+
+        ++self[name+'currentPreHookCounter']; // counter starts at -1
+        if (self[name+'currentPreHookCounter'] < self.totalPreHooks(name)) {
+          currentPreFunction = self.getPreHooks(name)[self[name+'currentPreHookCounter']];
+
+          var currentPreFunctionArgumentsCount = currentPreFunction.length;
+          if (currentPreFunctionArgumentsCount < 1){
+            //The arguments of the hook function doesn't have sufficient arguments
+            //  Any pre or post hook needs at least 1 argument for the function self must be
+            //  called next.
+            throw new Error("Your pre must have a next argument -- e.g., function (next, ...)");
+          }
+
+          preArgs = [preNext].concat(self[name+'HookArgs']);
+          return currentPreFunction.apply(self, preArgs);
+        }else{
+          preDone.apply(self, originalFunctionArguments);
+        }
+      };
+
+      return this;
+    },
+
+    pre: function (name, fn) {
+      var proto = this.prototype || this,
+          pres = proto._pres = proto._pres || {};
+
+      this._lazySetupHooks(proto, name);
+
+      pres[name] = pres[name] || [];
+      pres[name].push(fn);
+      return this;
+    },
+    post: function (name, fn) {
+      var proto = this.prototype || this,
+          posts = proto._posts = proto._posts || {};
+
+      this._lazySetupHooks(proto, name);
+      posts[name] = posts[name] || [];
+      posts[name].push(fn);
+      return this;
+    },
+    _lazySetupHooks: function (proto, methodName) {
+      this.hook(methodName, proto[methodName]);
+    },
+    removePost: function (name, fnToRemove) {
+      var proto = this.prototype || this,
+          posts = proto._posts || (proto._posts || {});
+      if (!posts[name]) return this;
+      if (arguments.length === 1) {
+        // Remove all post callbacks for hook `name`
+        posts[name].length = 0;
+      } else {
+        posts[name] = posts[name].filter( function (currFn) {
+          return currFn !== fnToRemove;
+        });
       }
-      function handleError (err) {
-        if ('function' == typeof lastArg)
-          return lastArg(err);
-        if (errorCb) return errorCb.call(self, err);
-        throw err;
+      return this;
+    },
+    removePre: function (name, fnToRemove) {
+      var proto = this.prototype || this,
+          pres = proto._pres || (proto._pres || {});
+      if (!pres[name]) return this;
+      if (arguments.length === 1) {
+        // Remove all pre callbacks for hook `name`
+        pres[name].length = 0;
+      } else {
+        pres[name] = pres[name].filter( function (currFn) {
+          return currFn !== fnToRemove;
+        });
       }
-      return _next.apply(this, arguments);
-    };
-    
-    proto[name].numAsyncPres = 0;
-
-    return this;
-  },
-
-  pre: function (name, isAsync, fn, errorCb) {
-    if ('boolean' !== typeof arguments[1]) {
-      errorCb = fn;
-      fn = isAsync;
-      isAsync = false;
+      return this;
     }
-    var proto = this.prototype || this
-      , pres = proto._pres = proto._pres || {};
-
-    this._lazySetupHooks(proto, name, errorCb);
-
-    if (fn.isAsync = isAsync) {
-      proto[name].numAsyncPres++;
-    }
-
-    (pres[name] = pres[name] || []).push(fn);
-    return this;
-  },
-  post: function (name, isAsync, fn) {
-    if (arguments.length === 2) {
-      fn = isAsync;
-      isAsync = false;
-    }
-    var proto = this.prototype || this
-      , posts = proto._posts = proto._posts || {};
-    
-    this._lazySetupHooks(proto, name);
-    (posts[name] = posts[name] || []).push(fn);
-    return this;
-  },
-  removePost: function (name, fnToRemove) {
-    var proto = this.prototype || this
-      , posts = proto._posts || (proto._posts || {});
-    if (!posts[name]) return this;
-    if (arguments.length === 1) {
-      // Remove all post callbacks for hook `name`
-      posts[name].length = 0;
-    } else {
-      posts[name] = posts[name].filter( function (currFn) {
-        return currFn !== fnToRemove;
-      });
-    }
-    return this;
-  },
-  removePre: function (name, fnToRemove) {
-    var proto = this.prototype || this
-      , pres = proto._pres || (proto._pres || {});
-    if (!pres[name]) return this;
-    if (arguments.length === 1) {
-      // Remove all pre callbacks for hook `name`
-      pres[name].length = 0;
-    } else {
-      pres[name] = pres[name].filter( function (currFn) {
-        return currFn !== fnToRemove;
-      });
-    }
-    return this;
-  },
-  _lazySetupHooks: function (proto, methodName, errorCb) {
-    if ('undefined' === typeof proto[methodName].numAsyncPres) {
-      this.hook(methodName, proto[methodName], errorCb);
-    }
-  }
-};
-
-function once (fn, scope) {
-  return function fnWrapper () {
-    if (fnWrapper.hookCalled) return;
-    fnWrapper.hookCalled = true;
-    return fn.apply(scope, arguments);
   };
-}
+})();
