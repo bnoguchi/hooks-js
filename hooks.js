@@ -18,8 +18,6 @@ var _ = require('underscore');
       posts[name] = posts[name] || [];
 
       proto[name] = proto[name] || function () {
-        console.info(this.getGuid()+' calls '+name);
-
         // This part here is weird for two reasons:
         // 1. We can't simply declare members like this.LastArgument, because
         //    then all hooks would share the same LastArgument member. This is to say
@@ -31,7 +29,6 @@ var _ = require('underscore');
         // So, all instances and all instance methods being hooked get their own namespace, such as
         // this[name+'InstanceVariableName']
         this[name+'LastArgument'] = arguments[arguments.length-1]; //Callback to original function
-        this[name+'LastArgument'].guid = this.getGuid();
         this[name+'HookArgs'] = undefined; // arguments eventually passed to the hooks - are mutable
         this[name+'CurrentPreHookCounter'] = -1;
         this[name+'CurrentPostHookCounter'] = -1;
@@ -57,7 +54,6 @@ var _ = require('underscore');
         return this._posts[name].length > 0;
       };
       var postNext = function () {
-        console.info(this.getGuid()+' calls '+name+' postNext');
         if (arguments[0] instanceof Error) {
           return handleError.call(this, arguments[0]);
         }
@@ -83,65 +79,51 @@ var _ = require('underscore');
           }
 
           postArgs = [postNext].concat(self[name+'HookArgs']);
-          console.info(this.getGuid()+' calls '+name+' currentPostFunction');
           return currentPostFunction.apply(self, postArgs);
         } else if (_.isFunction(self[name+'LastArgument'])){
           // All post handlers are done, call original callback function
-          console.info(this.getGuid()+' calls '+name+' lastArgument');
-          console.assert(self[name+'LastArgument'].guid === self.getGuid(), self[name+'LastArgument'].guid+' does not equal '+self.getGuid());
           return self[name+'LastArgument'].apply(self, arguments);
         }
       };
       var preDone = function () {
-        console.info(this.getGuid()+' calls '+name+' preDone');
         var self = this,
             args_ = Array.prototype.slice.call(arguments); //Should stil be the arguments to the original function
 
         // // We are assuming self if the last argument provided to the original
         // // function is a function, it was expecting a callback. 
         // // We trap self callback and wait to call it until all post handlers have finished.
-        // if(_.isFunction(self[name+'LastArgument'])){
-        //   // replace lastArgument with postNext in the args array
-        //   // Above, we have preserved the lastArgument.
-        //   args_[args_.length - 1] = function (){
-        //     console.info(self.getGuid()+' preDone calls '+name+' postNext');
-        //     return postNext.apply(self, arguments); //post hooks get no arguments
-        //   };
-        // }
+        if(_.isFunction(self[name+'LastArgument'])){
+          // replace lastArgument with postNext in the args array
+          // Above, we have preserved the lastArgument.
+          args_[args_.length - 1] = function (){
+            return postNext.apply(self, arguments); //post hooks get no arguments
+          };
+        }
 
         if (!self.thereArePostHooks(name) && _.isFunction(self[name+'LastArgument'])){
-          console.info(this.getGuid()+' calls '+name+' originalFunction with callback');
-          originalFunction.call(self, function (){
-            console.info(self.getGuid()+' preDone calls '+name+' postNext');
-            postNext.apply(self, arguments);
-          });
+          originalFunction.call(self, args_);
         }else{ //originalFunction does not take a callback
           // no callback provided --> execute postNext() manually
-          console.info(this.getGuid()+' calls '+name+' originalFunction without callback');
           originalFunction.apply(self, args_);
           postNext.apply(self, arguments);
         }
       };
       var handleError = function (err) {
-        console.info(this.getGuid()+' calls '+name+' handleError');
         var self = this;
         if (errorCb){
           errorCb.apply(self, [err]);
 
           // If the original function took a callback as the last argument
           if(_.isFunction(self[name+'LastArgument'])){
-            console.info(this.getGuid()+' calls '+name+' ERROR lastArgument');
             self[name+'LastArgument'](err);
           }
         }else if (_.isFunction(self[name+'LastArgument'])){
-          console.info(this.getGuid()+' calls '+name+' ERROR lastArgument');
           return self[name+'LastArgument'](err);
         }else {
           throw err;
         }
       };
       var preNext = function () {
-        console.info(this.getGuid()+' calls '+name+' preNext');
         if (arguments[0] instanceof Error) {
           return handleError.call(this, arguments[0]);
         }
