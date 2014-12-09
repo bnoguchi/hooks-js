@@ -714,5 +714,28 @@ module.exports = {
       assert.equal(a.value, 7);
       assert.equal(a.value2, 3);
     });
+  },
+
+  'should handle parallel followed by serial': function () {
+    var A = function () {};
+    _.extend(A, hooks);
+    A.hook('save', function (val, callback) {
+      this.value = val;
+      callback();
+    });
+    A.pre('save', true, function(next, done) {
+      process.nextTick(function() {
+        done();
+      });
+      next();
+    }).pre('save', function(done) {
+      process.nextTick(function() {
+        done();
+      });
+    });
+    var a = new A();
+    a.save(2, function(){
+      assert.ok(true);
+    });
   }
 };
