@@ -48,7 +48,7 @@ module.exports = {
                           ? [once(_next), once(_asyncsDone)]
                           : [once(_next)]).concat(hookArgs);
               return currPre.apply(self, preArgs);
-            } else if (!proto[name].numAsyncPres) {
+            } else if (!_asyncsLeft) {
               return _done.apply(self, hookArgs);
             }
           }
