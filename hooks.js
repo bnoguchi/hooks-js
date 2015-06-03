@@ -158,6 +158,20 @@ module.exports = {
     }
     return this;
   },
+  removePost: function (name, fnToRemove) {
+    var proto = this.prototype || this
+      , posts = proto._posts || (proto._posts || {});
+    if (!posts[name]) return this;
+    if (arguments.length === 1) {
+      // Remove all post callbacks for hook `name`
+      posts[name].length = 0;
+    } else {
+      posts[name] = posts[name].filter( function (currFn) {
+        return currFn !== fnToRemove;
+      });
+    }
+    return this;
+  },
   _lazySetupHooks: function (proto, methodName, errorCb) {
     if ('undefined' === typeof proto[methodName].numAsyncPres) {
       this.hook(methodName, proto[methodName], errorCb);
